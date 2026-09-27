@@ -142,6 +142,21 @@ def main():
 
     plain = lambda o: (o, "")                               # noqa: E731
 
+    # Отклонённый инструмент — повтор той же модели с пометкой, без паузы и
+    # без смены модели; второй заход должен получить пометку в промпте.
+    class Tooly(Says):
+        def run(self, system, user, image=None):
+            self.calls += 1
+            self.seen = user
+            if self.calls == 1:
+                raise A.ToolDenied("agy отклонил инструмент (RunCommand), ответа нет")
+            return "готово", {"model": self.model, "cost_usd": 0}
+    tooly = Tooly("инструментальная")
+    (res, _), meta, _ = P._chain_run([tooly, Says("запасная")], "", "п", 3, plain, log)
+    ok("отклонённый инструмент: повтор той же модели с пометкой",
+       res == "готово" and meta["model"] == "инструментальная" and meta.get("attempts") == 2
+       and "Инструменты недоступны" in tooly.seen, (meta, tooly.seen[-80:]))
+
     # Сбой поставщика — повод взять следующую модель, а не кончить прогон.
     first = Says("первая", boom=AgentError("agy вернул 1: high traffic"))
     second = Says("вторая")

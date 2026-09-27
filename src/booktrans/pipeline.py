@@ -367,6 +367,12 @@ def _run(agent, system, prompt, retries, parse_fn, log):
             # бьётся о тот же фильтр слово в слово, пять попыток печатали
             # одно и то же.
             raise
+        except agent_mod.ToolDenied as e:
+            # Модель позвала инструмент, agy его отклонил — ход пустой. Не
+            # отказ и не связь: повтор сразу, с пометкой, что инструментов нет.
+            log("\n    " + T("retry", attempt, e))
+            cur = prompt + "\n\n---\n\n" + lang.prompt("retry_tools")[0].format(err=e)
+            err = e
         except ValueError as e:
             # Разбор отверг ответ: без конверта, без вердикта. Слепой повтор
             # того же промпта бился о то же место пять раз подряд — модель

@@ -30,7 +30,7 @@ class Ran:
         self.stdout, self.stderr = out, ""
 
     def __call__(self, cmd, **kw):
-        self.cmd = cmd
+        self.cmd, self.kw = cmd, kw
         return self
 
 
@@ -112,6 +112,22 @@ def main():
     finally:
         restore()
     ok("agy: пустой SUCCESS — пустой ответ, не ошибка", got == "", repr(got))
+    # Пустой ответ с отклонённым инструментом — не пустой перевод: модель
+    # позвала команду, agy её не пустил. Это повтор с пометкой, не отказ.
+    spy = Ran(json.dumps({"status": "SUCCESS", "response": "",
+                          "denied_actions": [{"action": "command", "display_name": "RunCommand"}]}))
+    spied("agy", spy)
+    try:
+        a = A.make_agent("agy", model="проба-модель", timeout=60)
+        try:
+            a.run("система", "запрос")
+            denied = None
+        except A.ToolDenied as e:
+            denied = str(e)
+    finally:
+        restore()
+    ok("agy: отклонённый инструмент — ToolDenied с его именем",
+       denied is not None and "RunCommand" in denied, denied)
 
     # Фильтр на входе шлюза: промпт до модели не дошёл, повтор бьётся о тот
     # же фильтр. Приходит и с кодом 0 — сообщением вместо ответа.

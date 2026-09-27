@@ -62,6 +62,13 @@ class Blocked(AgentError):
     кусок — модели за другим шлюзом, как при содержательном отказе."""
 
 
+class ToolDenied(AgentError):
+    """Модель вызвала инструмент — команду, чтение файла, поиск, — а
+    неинтерактивный agy его отклонил, и ход кончился пустым ответом. Это не
+    отказ от содержания и не сбой связи: повтор с пометкой «инструментов нет»
+    обычно даёт перевод с первого раза."""
+
+
 class Hushed(AgentError):
     """Агент умер, не объяснившись: ненулевой код возврата и ни слова по
     существу. Так гибнут внешние беды — лимит или давка сессий, пришедшие
@@ -637,6 +644,7 @@ class AgyAgent(Agent):
         self.effort = effort
 
     def run(self, system, user, image=None):
+        from . import lang
         payload = f"{system}\n\n---\n\n{user}" if system else user
         # Длинное сообщение agy режет молча, и модель отвечает на обрубок.
         size = len(payload.encode())
@@ -652,7 +660,6 @@ class AgyAgent(Agent):
         if self.effort:
             cmd += ["--effort", self.effort]
         if image:
-            from . import lang
             payload += "\n\n" + lang.prompt("image_read_tools")[0].format(
                 path=os.path.abspath(image))
         try:
@@ -684,6 +691,13 @@ class AgyAgent(Agent):
             # не подставляется: разбор жаловался бы «ответ без маркеров» с
             # json вместо текста в сообщении.
             text = str(env.get("result") or env.get("response") or "")
+            # Пустой ответ при отклонённом инструменте — не пустой перевод и
+            # не отказ: модель хотела что-то выполнить, а agy не дал.
+            denied = env.get("denied_actions")
+            if denied and not text.strip():
+                names = ", ".join(str(d.get("display_name") or d.get("action") or d)
+                                  for d in denied) if isinstance(denied, list) else str(denied)
+                raise ToolDenied(f"agy отклонил инструмент ({names}), ответа нет")
             u = env.get("usage")
             if u:
                 inp, out = u.get("input_tokens") or 0, u.get("output_tokens") or 0
