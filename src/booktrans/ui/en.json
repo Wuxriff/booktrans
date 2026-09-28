@@ -289,7 +289,7 @@
  "like_none": "no reference found: {}",
  "reanchored": "block numbering shifted: translation re-anchored, blocks: {}",
  "h_name_series": "include the cycle and book number in the output file name: “Author. Cycle 2. Title”",
- "h_bilingual": "bilingual build: the source paragraph under every translated one; headings, contents and footnotes stay in the target language",
+ "h_bilingual": "bilingual build: every source paragraph followed by its translation in a lighter type; headings, contents and footnotes stay in the target language",
  "step_verify": "verifying remarks against the original",
  "done_verify": "verified {}, already done {}, {} footnotes, {} fixes",
  "nothing_verify": "no remarks to verify",
