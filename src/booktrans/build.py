@@ -606,23 +606,26 @@ def build_book(work, meta, blocks, cover, dest, log, partial=False, images=None)
                    b["text"] if b["kind"] == "image" else tr.get(b["id"], ""),
                    b["id"], b.get("links"), b.get("spans"), b.get("level"))
                   for b in blocks if not b.get("drop")]
-        # Двуязычная книга: под каждым абзацем и стихотворной строкой —
-        # оригинал. Заголовки, оглавление и сноски остаются на языке перевода:
-        # книга читается как перевод, оригинал — подстрочник к нему.
+        # Двуязычная книга: сначала абзац оригинала, под ним перевод
+        # вспомогательным шрифтом — как в параллельных изданиях: читают
+        # оригинал, в перевод заглядывают. Заголовки, оглавление и сноски —
+        # на языке перевода; знак сноски остаётся у перевода.
         if meta.get("bilingual"):
             two = []
             for it in items:
-                two.append(it)
                 k, t, bid = it[0], it[1], it[2]
                 if k in ("p", "verse") and bid in src and src[bid].strip() and not b_asis(bid):
-                    two.append(("orig", src[bid], bid + "_orig", it[3], None, None))
+                    two.append(("orig" if k == "p" else "origv", src[bid], bid + "_orig", it[3], None, None))
+                    two.append(("ptr" if k == "p" else "vtr", *it[1:]))
+                else:
+                    two.append(it)
             items = two
         # Точная привязка сносок: метка встаёт по указателю переводчика или
         # сразу после термина, и знак сноски выходит у объясняемого слова, а
         # не в конце абзаца. Из блоков без сноски указатели вычищаются:
         # повторный указатель на уже объяснённый термин знака не получает.
         items = [(k, output.anchor_note(t, bid, notes[bid].get("terms"))
-                  if k == "p" and isinstance(notes.get(bid), dict)
+                  if k in ("p", "ptr") and isinstance(notes.get(bid), dict)
                   else output.strip_note_marks(t) if k != "image" and isinstance(t, str)
                   else t,
                   bid, *rest) for k, t, bid, *rest in items]

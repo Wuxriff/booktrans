@@ -28,27 +28,28 @@ def main():
     d = tempfile.mkdtemp()
     meta = {"title": "Книга", "author": "Автор", "target_lang": "ru"}
     items = [("title", "Глава", "s01.b0001", None, None, 1),
-             ("p", "Перевод абзаца.", "s01.b0002", None, None, None),
              ("orig", "The <i>original</i> paragraph.", "s01.b0002_orig", None, None, None),
-             ("verse", "строка", "s01.b0003", None, None, None),
-             ("orig", "a line", "s01.b0003_orig", None, None, None)]
+             ("ptr", "Перевод абзаца.", "s01.b0002", None, None, None),
+             ("origv", "a line", "s01.b0003_orig", None, None, None),
+             ("vtr", "строка", "s01.b0003", None, None, None)]
     notes = {"s01.b0002": {"text": "сноска"}}
     p = os.path.join(d, "b.epub")
     O.write_epub(p, meta, items, notes, {}, "Прим. ")
     z = zipfile.ZipFile(p)
     body = "".join(z.read(n).decode() for n in z.namelist() if n.endswith(".xhtml"))
-    ok("epub: оригинал абзацем класса orig, с курсивом",
-       '<p class="orig">The <i>original</i> paragraph.</p>' in body, body[:300])
+    ok("epub: оригинал обычным абзацем первым, перевод под ним классом tr",
+       body.index("<p>The <i>original</i> paragraph.</p>") < body.index('<p class="tr"') and body.count('class="tr"') == 1, body[:400])
     ok("epub: знак сноски у перевода, у оригинала нет",
-       body.count("<sup>") == 1 and "orig\">The" in body)
+       body.count("<sup>") == 1 and 'class="tr">Перевод абзаца.<sup>' in body)
+    ok("epub: стих — строка оригинала, под ней перевод", '<p class="v">a line</p><p class="v tr">строка</p>' in body)
     ok("epub: заголовок главы один, оригинала у него нет", body.count("<h1>Глава</h1>") == 1 and "orig\">Глава" not in body)
     h = os.path.join(d, "b.html"); O.write_html(h, meta, items, notes, {}, "Прим. ")
-    ok("html: оригинал есть", 'class="orig"' in open(h, encoding="utf-8").read())
+    ok("html: перевод классом tr", 'class="tr"' in open(h, encoding="utf-8").read())
     m = os.path.join(d, "b.md"); O.write_md(m, meta, items, notes, {}, "Прим. ")
-    ok("md: оригинал цитатой", "> The *original* paragraph." in open(m, encoding="utf-8").read(),
+    ok("md: оригинал абзацем, перевод цитатой со сноской", "The *original* paragraph.\n" in open(m, encoding="utf-8").read() and "> Перевод абзаца.[^1]" in open(m, encoding="utf-8").read(),
        [l for l in open(m, encoding="utf-8").read().splitlines() if "original" in l])
     t = os.path.join(d, "b.txt"); O.write_txt(t, meta, items, notes, {}, "Прим. ")
-    ok("txt: оригинал отступом", "    | The original paragraph." in open(t, encoding="utf-8").read())
+    ok("txt: оригинал строкой, перевод с отступом", "The original paragraph.\n    | Перевод абзаца. [1]" in open(t, encoding="utf-8").read(), open(t, encoding="utf-8").read()[-200:])
 
     # DRM: зашифрован текст — отказ; зашифрованы только шрифты — книга читается
     def epub(enc):

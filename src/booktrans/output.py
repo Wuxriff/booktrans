@@ -341,7 +341,13 @@ def write_txt(path, meta, items, notes, images, note_prefix, st=None, **kw):
         elif kind == "image":
             out.append("[" + st.get("illustration", "иллюстрация: {alt}").format(alt=text) + "]")
         elif kind == "orig":
-            out.append("    | " + _plain(text))
+            out.append(_plain(text))
+        elif kind == "origv":
+            out.append("    " + _plain(text))
+        elif kind in ("ptr", "vtr"):
+            mark = f" [{nums[bid]}]" if bid in nums else ""
+            body, mark = _anchored(_plain(text), bid, mark)
+            out.append("    | " + body + mark)
         else:
             mark = f" [{nums[bid]}]" if bid in nums else ""
             body, mark = _anchored(_plain(text), bid, mark)
@@ -500,7 +506,13 @@ def write_md(path, meta, items, notes, images, note_prefix, st=None, cover=None,
             fence = "```" if "```" not in text else "~~~~"
             o.append(f"{fence}\n{text}\n{fence}")
         elif kind == "orig":
-            o.append(at + "> " + _md_par(_md(text, links)))
+            o.append(_md_par(_md(text, links)))
+        elif kind == "origv":
+            o.append("    " + _md(text, links))
+        elif kind in ("ptr", "vtr"):
+            mark = f"[^{nums[bid]}]" if bid in nums else ""
+            body, mark = _anchored(_md_par(_md(text, links)), bid, mark)
+            o.append(at + "> " + body + mark)
         elif kind == "p":
             mark = f"[^{nums[bid]}]" if bid in nums else ""
             body, mark = _anchored(_md_par(_md(text, links)), bid, mark)
@@ -531,7 +543,8 @@ h2{font-size:1em;color:#666;font-weight:normal;margin:.2em 0 1.5em;font-style:it
 p{margin:0 0 .9em;text-align:justify;hyphens:auto}
 p.v{margin:0 0 .1em 2em;text-align:left;font-style:italic;text-indent:-1em}
 p.gap{margin:0;height:.9em}
-p.orig{margin:-.5em 0 1.1em;color:#666;font-size:.9em;text-align:left;hyphens:manual}
+p.tr{margin:-.5em 0 1.1em;color:#666;font-size:.9em;text-align:left;hyphens:manual}
+p.v.tr{margin:0 0 .4em 2em}
 pre{font:.85em/1.4 'DejaVu Sans Mono',Consolas,monospace;background:#f4f4f0;
 border-left:3px solid #ddd;padding:.6em .8em;margin:1.2em 0;overflow-x:auto;
 white-space:pre-wrap;word-wrap:break-word}
@@ -591,7 +604,14 @@ def write_html(path, meta, items, notes, images, note_prefix, st=None, cover=Non
         elif kind == "code":
             o.append(f"<pre>{escape(text)}</pre>")
         elif kind == "orig":
-            o.append(f'<p class="orig">{_inline(text, HTML_INLINE, links)}</p>')
+            o.append(f"<p>{_inline(text, HTML_INLINE, links)}</p>")
+        elif kind == "origv":
+            o.append(f'<p class="v">{_inline(text, HTML_INLINE, links)}</p>')
+        elif kind in ("ptr", "vtr"):
+            mark = (f'<sup><a href="#n{nums[bid]}" id="r{nums[bid]}">[{nums[bid]}]</a></sup>'
+                    if bid in nums else "")
+            body, mark = _anchored(_inline(text, HTML_INLINE, links), bid, mark)
+            o.append(f'<p class="{"tr" if kind == "ptr" else "v tr"}"{_at(bid, targets)}>{body}{mark}</p>')
         elif kind == "p":
             mark = (f'<sup><a href="#n{nums[bid]}" id="r{nums[bid]}">[{nums[bid]}]</a></sup>'
                     if bid in nums else "")
@@ -701,7 +721,14 @@ def write_epub(path, meta, items, notes, images, note_prefix, st=None, cover=Non
             elif kind == "code":
                 o.append(f"<pre>{escape(text)}</pre>")
             elif kind == "orig":
-                o.append(f'<p class="orig">{_inline(text, HTML_INLINE, links)}</p>')
+                o.append(f"<p>{_inline(text, HTML_INLINE, links)}</p>")
+            elif kind == "origv":
+                o.append(f'<p class="v">{_inline(text, HTML_INLINE, links)}</p>')
+            elif kind in ("ptr", "vtr"):
+                mark = (f'<sup><a href="notes.xhtml#n{nums[bid]}">[{nums[bid]}]</a></sup>'
+                        if bid in nums else "")
+                body, mark = _anchored(_inline(text, HTML_INLINE, links), bid, mark)
+                o.append(f'<p class="{"tr" if kind == "ptr" else "v tr"}"{_at(bid, targets)}>{body}{mark}</p>')
             elif kind == "p":
                 mark = (f'<sup><a href="notes.xhtml#n{nums[bid]}">[{nums[bid]}]</a></sup>'
                         if bid in nums else "")
@@ -1752,9 +1779,11 @@ def write_fb2(dest, meta, items, notes, images, note_prefix, st=None, cover=None
             if not in_poem:
                 w("<poem><stanza>")
                 in_poem = True
-            w(f"<v>{esc(text, b.get('links'), notes_map)}</v>")
             if kw.get("bilingual") and b["text"].strip():
-                w(f"<v><emphasis>{esc(b['text'], b.get('links'), notes_map)}</emphasis></v>")
+                w(f"<v>{esc(b['text'], b.get('links'), notes_map)}</v>")
+                w(f"<v><emphasis>{esc(text, b.get('links'), notes_map)}</emphasis></v>")
+            else:
+                w(f"<v>{esc(text, b.get('links'), notes_map)}</v>")
         elif b["kind"] == "code":
             # В fb2 нет <pre>: листинг идёт строкой на абзац, а отступ держится
             # неразрывными пробелами — обычные читалка схлопнет.
@@ -1812,13 +1841,18 @@ def write_fb2(dest, meta, items, notes, images, note_prefix, st=None, cover=None
             # Перенос строки внутри абзаца: у <p> в fb2 нет <br/>, строки
             # выходят соседними абзацами; знак сноски — где его метка, иначе
             # на последней.
+            two = kw.get("bilingual") and not b.get("asis") and b["text"].strip()
+            if two:
+                for k, part in enumerate(_br_parts(b["text"])):
+                    w(f"<p{aid(b) if k == 0 else ''}>{esc(part, b.get('links'), notes_map)}</p>")
             parts = _br_parts(text)
             for k, part in enumerate(parts):
                 body, a = _anchored(esc(part, b.get('links'), notes_map), b["id"], a)
-                w(f"<p{aid(b) if k == 0 else ''}>{body}{a if k == len(parts) - 1 else ''}</p>")
-            if kw.get("bilingual") and not b.get("asis") and b["text"].strip():
-                for part in _br_parts(b["text"]):
-                    w(f"<p><emphasis>{esc(part, b.get('links'), notes_map)}</emphasis></p>")
+                tail = a if k == len(parts) - 1 else ""
+                if two:
+                    w(f"<p><emphasis>{body}</emphasis>{tail}</p>")
+                else:
+                    w(f"<p{aid(b) if k == 0 else ''}>{body}{tail}</p>")
     close_poem()
     if open_sec:
         w("</section>")
