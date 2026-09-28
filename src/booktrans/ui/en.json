@@ -289,6 +289,7 @@
  "like_none": "no reference found: {}",
  "reanchored": "block numbering shifted: translation re-anchored, blocks: {}",
  "h_name_series": "include the cycle and book number in the output file name: “Author. Cycle 2. Title”",
+ "h_bilingual": "bilingual build: the source paragraph under every translated one; headings, contents and footnotes stay in the target language",
  "step_verify": "verifying remarks against the original",
  "done_verify": "verified {}, already done {}, {} footnotes, {} fixes",
  "nothing_verify": "no remarks to verify",
@@ -380,5 +381,6 @@
  "bench_stats_none": "No runs with key {0} in {1}",
  "bench_r_attempts": "Translation attempts before a well-formed reply: {0}",
  "bench_run_kept": "{0}: already judged, score {1} — kept",
- "bench_area_adap": "Adaptation"
+ "bench_area_adap": "Adaptation",
+ "epub_drm": "the EPUB is DRM-encrypted: {0} — META-INF/encryption.xml encrypts the book text; the pipeline cannot remove the protection, a DRM-free file is needed"
 }

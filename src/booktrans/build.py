@@ -498,6 +498,8 @@ def build_book(work, meta, blocks, cover, dest, log, partial=False, images=None)
     if missing and not partial:
         raise SystemExit(f"не переведено {len(missing)} блоков, например {missing[:6]}")
     src = {b["id"]: b["text"] for b in blocks}
+    asis_ids = {b["id"] for b in blocks if b.get("asis")}
+    b_asis = asis_ids.__contains__          # листинги и библиография: оригинал и так
     for i in missing:
         tr[i] = src[i]
     if missing:
@@ -604,6 +606,17 @@ def build_book(work, meta, blocks, cover, dest, log, partial=False, images=None)
                    b["text"] if b["kind"] == "image" else tr.get(b["id"], ""),
                    b["id"], b.get("links"), b.get("spans"), b.get("level"))
                   for b in blocks if not b.get("drop")]
+        # Двуязычная книга: под каждым абзацем и стихотворной строкой —
+        # оригинал. Заголовки, оглавление и сноски остаются на языке перевода:
+        # книга читается как перевод, оригинал — подстрочник к нему.
+        if meta.get("bilingual"):
+            two = []
+            for it in items:
+                two.append(it)
+                k, t, bid = it[0], it[1], it[2]
+                if k in ("p", "verse") and bid in src and src[bid].strip() and not b_asis(bid):
+                    two.append(("orig", src[bid], bid + "_orig", it[3], None, None))
+            items = two
         # Точная привязка сносок: метка встаёт по указателю переводчика или
         # сразу после термина, и знак сноски выходит у объясняемого слова, а
         # не в конце абзаца. Из блоков без сноски указатели вычищаются:
@@ -635,6 +648,7 @@ def build_book(work, meta, blocks, cover, dest, log, partial=False, images=None)
         if ext in (".fb2", ".fb2.zip"):
             kw.update({
                 "blocks": blocks, "tr": tr, "partial": partial,
+                "bilingual": bool(meta.get("bilingual")),
                 "about_head": head, "about_body": body,
                 "details_head": dhead, "details_body": dbody,
                 "esc": esc, "span_attr": output.span_attr

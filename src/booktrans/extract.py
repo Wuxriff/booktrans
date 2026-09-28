@@ -767,6 +767,15 @@ def _doc_blocks(root, styles, get_image, stats):
 
 def _epub(path, styles=None, encoding=None, ask=None):
     zf = zipfile.ZipFile(path)
+    # DRM: текст книги зашифрован, читать нечего. Шрифты в encryption.xml —
+    # обычная обфускация, книге не мешает; отказ только по текстовым файлам.
+    if "META-INF/encryption.xml" in zf.namelist():
+        enc = zf.read("META-INF/encryption.xml").decode("utf-8", "ignore")
+        uris = re.findall(r'CipherReference[^>]*URI="([^"]+)"', enc)
+        if any(u.lower().split("?")[0].endswith((".xhtml", ".html", ".htm", ".xml", ".opf", ".ncx"))
+               for u in uris):
+            from . import lang as _L
+            raise SystemExit(_L.T("epub_drm", path))
     container = ET.fromstring(zf.read("META-INF/container.xml"))
     rootfile = container.find(".//{urn:oasis:names:tc:opendocument:xmlns:container}rootfile")
     opf_path = rootfile.get("full-path")

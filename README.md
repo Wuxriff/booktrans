@@ -44,6 +44,13 @@ With translator's instructions:
 ./booktrans book.epub -p instructions.md --to de -o Buch.epub
 ```
 
+A bilingual book for language learners — the source paragraph under every
+translated one, headings and contents in the target language only:
+
+```bash
+./booktrans book.epub --to ru --bilingual
+```
+
 And here is the full arrangement — how one translates a long novel:
 
 ```bash
@@ -95,7 +102,7 @@ translation, adds footnotes and assembles the file.
 
 ## What it does
 
-- **reads** epub, fb2, html, pdf, md, txt; **writes** epub, fb2, html, md, txt, tex, pdf;
+- **reads** epub, fb2, html, pdf, md, txt (a DRM-encrypted epub is refused with a clear message); **writes** epub, fb2, html, md, txt, tex, pdf;
 - **works out the markup with the model** rather than by fixed rules: every
   publisher lays books out differently;
 - **scouts the book before translating** — narrator voices, names, terms,
@@ -975,6 +982,7 @@ Hebrew and Arabic tables, plus East Asian `shift_jis`, `euc_jp`, `gb18030`,
 -o, --out FILE        output file; format follows the extension
 -w, --work DIR        work directory
 --to CODE             target language (langs/CODE.md), en by default
+--bilingual           bilingual build: the source paragraph under every translated one; headings, contents and footnotes stay in the target language
 --ui CODE             interface language (ui/CODE.json), en by default
 --encoding NAME       input encoding, when detection got it wrong
 --only STEP           a single step: ocr|structure|ocrfix|scout|translate|edit|verify|build|qa|notes
