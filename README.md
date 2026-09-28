@@ -599,7 +599,7 @@ A profile is a file holding the same keys you would have typed:
 ```
 # profiles/agy.conf — Gemini in front, Claude behind it
 --agent agy
---translator gemini-3.8-flash-high,claude:claude-opus-5-5
+--translator gemini-3.8-flash-medium,claude:claude-opus-5-5
 --editor     claude:claude-opus-5-5,gemini-3.1-pro-high
 --jobs 5
 ```
