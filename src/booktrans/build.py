@@ -610,6 +610,7 @@ def build_book(work, meta, blocks, cover, dest, log, partial=False, images=None)
         # вспомогательным шрифтом — как в параллельных изданиях: читают
         # оригинал, в перевод заглядывают. Заголовки, оглавление и сноски —
         # на языке перевода; знак сноски остаётся у перевода.
+        bi_titles = {}
         if meta.get("bilingual"):
             two = []
             for it in items:
@@ -618,6 +619,10 @@ def build_book(work, meta, blocks, cover, dest, log, partial=False, images=None)
                     two.append(("orig" if k == "p" else "origv", src[bid], bid + "_orig", it[3], None, None))
                     two.append(("ptr" if k == "p" else "vtr", *it[1:]))
                 else:
+                    # Заголовок остаётся один, с переводом: по нему оглавление;
+                    # оригинал писатель ставит второй строкой того же элемента.
+                    if k in ("title", "subtitle") and bid in src and src[bid].strip() and src[bid] != t:
+                        bi_titles[bid] = src[bid]
                     two.append(it)
             items = two
         # Точная привязка сносок: метка встаёт по указателю переводчика или
@@ -643,6 +648,7 @@ def build_book(work, meta, blocks, cover, dest, log, partial=False, images=None)
 
         kw.update({
             "note_seq": note_seq, "nid": nid, "notes_map": notes_map,
+            "bi_titles": bi_titles,
             # Сборщик сам считает, сколько картинок вложил: из набора в книгу
             # идёт не всё, и сказать об этом может только он.
             "log": log, "lang": lang,

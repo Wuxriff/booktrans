@@ -325,9 +325,11 @@ def write_txt(path, meta, items, notes, images, note_prefix, st=None, **kw):
     nums = {b: i for i, b in enumerate(notes, 1)}
     for kind, text, bid, links, *sp in items:
         if kind == "title":
-            out += ["", "", _plain(text).upper(), ""]
+            orig = (kw.get("bi_titles") or {}).get(bid)
+            out += ["", ""] + ([_plain(orig).upper()] if orig else []) + [_plain(text).upper(), ""]
         elif kind == "subtitle":
-            out += [_plain(text), ""]
+            orig = (kw.get("bi_titles") or {}).get(bid)
+            out += ([_plain(orig)] if orig else []) + [_plain(text), ""]
         elif kind == "gap":
             out.append("")
         elif kind == "break":
@@ -489,9 +491,11 @@ def write_md(path, meta, items, notes, images, note_prefix, st=None, cover=None,
         at = f'<a id="{bid}"></a>' if bid in targets else ""
         if kind == "title":
             level = min(sp[1] if len(sp) > 1 and sp[1] is not None else 1, 6)
-            o.append(at + "#" * level + " " + _md(text))
+            orig = (kw.get("bi_titles") or {}).get(bid)
+            o.append(at + "#" * level + " " + (_md(orig) + "  \n*" + _md(text) + "*" if orig else _md(text)))
         elif kind == "subtitle":
-            o.append(at + "## " + _md(text))
+            orig = (kw.get("bi_titles") or {}).get(bid)
+            o.append(at + "## " + (_md(orig) + "  \n*" + _md(text) + "*" if orig else _md(text)))
         elif kind == "break":
             o.append("* * *")
         elif kind == "image" and text in images:
@@ -543,8 +547,9 @@ h2{font-size:1em;color:#666;font-weight:normal;margin:.2em 0 1.5em;font-style:it
 p{margin:0 0 .9em;text-align:justify;hyphens:auto}
 p.v{margin:0 0 .1em 2em;text-align:left;font-style:italic;text-indent:-1em}
 p.gap{margin:0;height:.9em}
-p.tr{margin:-.5em 0 1.1em;color:#666;font-size:.9em;text-align:left;hyphens:manual}
-p.v.tr{margin:0 0 .4em 2em}
+p.tr{margin:-.5em 0 1.1em;color:#666;font-size:.92em;text-align:left;hyphens:manual}
+p.v.tr{margin:0 0 .4em 2em;font-style:normal}
+h1 span.tr,h2 span.tr,h3 span.tr{display:block;color:#666;font-size:.7em;font-weight:normal;letter-spacing:0}
 pre{font:.85em/1.4 'DejaVu Sans Mono',Consolas,monospace;background:#f4f4f0;
 border-left:3px solid #ddd;padding:.6em .8em;margin:1.2em 0;overflow-x:auto;
 white-space:pre-wrap;word-wrap:break-word}
@@ -561,6 +566,7 @@ h2{color:#999}.notes{color:#bbb;border-color:#333}sup a{color:#7ab}}"""
 
 
 def write_html(path, meta, items, notes, images, note_prefix, st=None, cover=None, **kw):
+    tl = (meta or {}).get("target_lang", "")
     st = st or {}
     targets = _targets(items)
     title = meta.get("title_target") or meta.get("title") or st.get("untitled", "Книга")
@@ -585,9 +591,9 @@ def write_html(path, meta, items, notes, images, note_prefix, st=None, cover=Non
     for kind, text, bid, links, *sp in items:
         if kind == "title":
             level = min(sp[1] if len(sp) > 1 and sp[1] is not None else 1, 6)
-            o.append(f"<h{level}{_at(bid, targets)}>{_inline(text, HTML_INLINE)}</h{level}>")
+            o.append(f"<h{level}{_at(bid, targets)}>{_htitle(text, bid, kw, tl)}</h{level}>")
         elif kind == "subtitle":
-            o.append(f"<h2{_at(bid, targets)}>{_inline(text, HTML_INLINE)}</h2>")
+            o.append(f"<h2{_at(bid, targets)}>{_htitle(text, bid, kw, tl)}</h2>")
         elif kind == "gap":
             o.append('<p class="gap"></p>')
         elif kind == "break":
@@ -611,7 +617,7 @@ def write_html(path, meta, items, notes, images, note_prefix, st=None, cover=Non
             mark = (f'<sup><a href="#n{nums[bid]}" id="r{nums[bid]}">[{nums[bid]}]</a></sup>'
                     if bid in nums else "")
             body, mark = _anchored(_inline(text, HTML_INLINE, links), bid, mark)
-            o.append(f'<p class="{"tr" if kind == "ptr" else "v tr"}"{_at(bid, targets)}>{body}{mark}</p>')
+            o.append(f'<p class="{"tr" if kind == "ptr" else "v tr"}"{_at(bid, targets)}{_lang(tl)}>{body}{mark}</p>')
         elif kind == "p":
             mark = (f'<sup><a href="#n{nums[bid]}" id="r{nums[bid]}">[{nums[bid]}]</a></sup>'
                     if bid in nums else "")
@@ -647,6 +653,21 @@ def _cover_mime(raw):
     return "image/jpeg", "jpg"
 
 
+def _lang(code):
+    """Атрибут языка у абзаца перевода в двуязычной книге: по нему читалки
+    выбирают переносы и словарь, озвучка — голос."""
+    return f' lang="{code}" xml:lang="{code}"' if code else ""
+
+
+def _htitle(text, bid, kw, tl):
+    """Заголовок; в двуязычной книге — оригинал и под ним перевод второй
+    строкой того же элемента: глава одна, в оглавлении только перевод."""
+    orig = (kw.get("bi_titles") or {}).get(bid)
+    if not orig:
+        return _inline(text, HTML_INLINE)
+    return f'{_inline(orig, HTML_INLINE)}<br/><span class="tr"{_lang(tl)}>{_inline(text, HTML_INLINE)}</span>'
+
+
 def _at(bid, targets):
     return f' id="{bid}"' if bid in targets else ""
 
@@ -657,6 +678,7 @@ def _targets(items):
 
 
 def write_epub(path, meta, items, notes, images, note_prefix, st=None, cover=None, **kw):
+    tl = (meta or {}).get("target_lang", "")
     items = _render_math_to_images(items, images)
     st = st or {}
     targets = _targets(items)
@@ -705,9 +727,9 @@ def write_epub(path, meta, items, notes, images, note_prefix, st=None, cover=Non
                      for u in (links or [])] or None
             if kind == "title":
                 level = min(sp[1] if len(sp) > 1 and sp[1] is not None else 1, 6)
-                o.append(f"<h{level}{_at(bid, targets)}>{_inline(text, HTML_INLINE)}</h{level}>")
+                o.append(f"<h{level}{_at(bid, targets)}>{_htitle(text, bid, kw, tl)}</h{level}>")
             elif kind == "subtitle":
-                o.append(f"<h2{_at(bid, targets)}>{_inline(text, HTML_INLINE)}</h2>")
+                o.append(f"<h2{_at(bid, targets)}>{_htitle(text, bid, kw, tl)}</h2>")
             elif kind == "gap":
                 o.append('<p class="gap"></p>')
             elif kind == "break":
@@ -728,7 +750,7 @@ def write_epub(path, meta, items, notes, images, note_prefix, st=None, cover=Non
                 mark = (f'<sup><a href="notes.xhtml#n{nums[bid]}">[{nums[bid]}]</a></sup>'
                         if bid in nums else "")
                 body, mark = _anchored(_inline(text, HTML_INLINE, links), bid, mark)
-                o.append(f'<p class="{"tr" if kind == "ptr" else "v tr"}"{_at(bid, targets)}>{body}{mark}</p>')
+                o.append(f'<p class="{"tr" if kind == "ptr" else "v tr"}"{_at(bid, targets)}{_lang(tl)}>{body}{mark}</p>')
             elif kind == "p":
                 mark = (f'<sup><a href="notes.xhtml#n{nums[bid]}">[{nums[bid]}]</a></sup>'
                         if bid in nums else "")
@@ -1760,6 +1782,10 @@ def write_fb2(dest, meta, items, notes, images, note_prefix, st=None, cover=None
                 # <title>, — поэтому цель ссылки помечается на секции.
                 w(f"<section{aid(b)}>")
                 w(f"<title><p>{esc(text, b.get('links'), notes_map)}</p></title>")
+                # Двуязычно: оригинал заголовка подзаголовком — в <title> его
+                # нельзя, читалка строит оглавление из всего <title>.
+                if kw.get("bilingual") and b["text"].strip() and b["text"] != text:
+                    w(f"<subtitle>{esc(b['text'], b.get('links'), notes_map)}</subtitle>")
                 open_sec = True
             was_title = True
             continue
@@ -1845,14 +1871,18 @@ def write_fb2(dest, meta, items, notes, images, note_prefix, st=None, cover=None
             if two:
                 for k, part in enumerate(_br_parts(b["text"])):
                     w(f"<p{aid(b) if k == 0 else ''}>{esc(part, b.get('links'), notes_map)}</p>")
+                w("<cite>")
             parts = _br_parts(text)
+            tl = (meta or {}).get("target_lang", "")
             for k, part in enumerate(parts):
                 body, a = _anchored(esc(part, b.get('links'), notes_map), b["id"], a)
                 tail = a if k == len(parts) - 1 else ""
                 if two:
-                    w(f"<p><emphasis>{body}</emphasis>{tail}</p>")
+                    w(f'<p xml:lang="{tl}">{body}{tail}</p>' if tl else f"<p>{body}{tail}</p>")
                 else:
                     w(f"<p{aid(b) if k == 0 else ''}>{body}{tail}</p>")
+            if two:
+                w("</cite>")
     close_poem()
     if open_sec:
         w("</section>")

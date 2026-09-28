@@ -45,8 +45,8 @@ With translator's instructions:
 ```
 
 A bilingual book for language learners — the source paragraph first, the
-translation under it in a lighter type; headings and contents in the target
-language only:
+translation under it in a lighter type, headings in both languages, the
+contents in the target language only:
 
 ```bash
 ./booktrans book.epub --to ru --bilingual
@@ -983,7 +983,7 @@ Hebrew and Arabic tables, plus East Asian `shift_jis`, `euc_jp`, `gb18030`,
 -o, --out FILE        output file; format follows the extension
 -w, --work DIR        work directory
 --to CODE             target language (langs/CODE.md), en by default
---bilingual           bilingual build: every source paragraph followed by its translation in a lighter type; headings, contents and footnotes stay in the target language
+--bilingual           bilingual build: every source paragraph followed by its translation in a lighter type, headings in both languages; contents and footnotes in the target language
 --ui CODE             interface language (ui/CODE.json), en by default
 --encoding NAME       input encoding, when detection got it wrong
 --only STEP           a single step: ocr|structure|ocrfix|scout|translate|edit|verify|build|qa|notes

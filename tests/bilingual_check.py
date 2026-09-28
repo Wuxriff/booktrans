@@ -34,15 +34,19 @@ def main():
              ("vtr", "строка", "s01.b0003", None, None, None)]
     notes = {"s01.b0002": {"text": "сноска"}}
     p = os.path.join(d, "b.epub")
-    O.write_epub(p, meta, items, notes, {}, "Прим. ")
+    O.write_epub(p, meta, items, notes, {}, "Прим. ", bi_titles={"s01.b0001": "Chapter"})
     z = zipfile.ZipFile(p)
     body = "".join(z.read(n).decode() for n in z.namelist() if n.endswith(".xhtml"))
     ok("epub: оригинал обычным абзацем первым, перевод под ним классом tr",
-       body.index("<p>The <i>original</i> paragraph.</p>") < body.index('<p class="tr"') and body.count('class="tr"') == 1, body[:400])
+       body.index("<p>The <i>original</i> paragraph.</p>") < body.index('<p class="tr"') and body.count('<p class="tr"') == 1, body[:400])
     ok("epub: знак сноски у перевода, у оригинала нет",
-       body.count("<sup>") == 1 and 'class="tr">Перевод абзаца.<sup>' in body)
-    ok("epub: стих — строка оригинала, под ней перевод", '<p class="v">a line</p><p class="v tr">строка</p>' in body)
-    ok("epub: заголовок главы один, оригинала у него нет", body.count("<h1>Глава</h1>") == 1 and "orig\">Глава" not in body)
+       body.count("<sup>") == 1 and 'xml:lang="ru">Перевод абзаца.<sup>' in body)
+    ok("epub: стих — строка оригинала, под ней перевод", '<p class="v">a line</p><p class="v tr" lang="ru" xml:lang="ru">строка</p>' in body)
+    ok("epub: заголовок — оригинал и перевод в одном элементе",
+       '<h1>Chapter<br/><span class="tr" lang="ru" xml:lang="ru">Глава</span></h1>' in body and body.count("<h1") == 1, body[:500])
+    ok("epub: у абзаца перевода атрибут языка", '<p class="tr" lang="ru" xml:lang="ru">' in body)
+    nav = "".join(z.read(n).decode() for n in z.namelist() if "nav" in n)
+    ok("epub: в оглавлении только перевод", ">Глава<" in nav and "Chapter" not in nav, nav[:300])
     h = os.path.join(d, "b.html"); O.write_html(h, meta, items, notes, {}, "Прим. ")
     ok("html: перевод классом tr", 'class="tr"' in open(h, encoding="utf-8").read())
     m = os.path.join(d, "b.md"); O.write_md(m, meta, items, notes, {}, "Прим. ")
