@@ -1302,6 +1302,7 @@ lib/lang.py            target language, interface, language detection
 lib/tune.py            every tunable number of the pipeline
 prompts/*.md           the task for each pass
 langs/*.md             target language rules
+agents/booktrans/      the tool-less agy agent, copied to ~/.gemini/config/agents/
 ui/*.json              interface messages
 watermarks.txt         extra watermark patterns
 README.ru.md           this file in Russian
