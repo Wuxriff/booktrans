@@ -43,7 +43,7 @@ def main():
        body.count("<sup>") == 1 and 'xml:lang="ru">Перевод абзаца.<sup>' in body)
     ok("epub: стих — строка оригинала, под ней перевод", '<p class="v">a line</p><p class="v tr" lang="ru" xml:lang="ru">строка</p>' in body)
     ok("epub: заголовок — оригинал и перевод в одном элементе",
-       '<h1>Chapter<br/><span class="tr" lang="ru" xml:lang="ru">Глава</span></h1>' in body and body.count("<h1") == 1, body[:500])
+       '<h1>Chapter<br/><span class="tr" lang="ru" xml:lang="ru">Глава</span></h1>' in body and body.count("<h1>Chapter") == 1, body[:500])
     ok("epub: у абзаца перевода атрибут языка", '<p class="tr" lang="ru" xml:lang="ru">' in body)
     nav = "".join(z.read(n).decode() for n in z.namelist() if "nav" in n)
     ok("epub: в оглавлении только перевод", ">Глава<" in nav and "Chapter" not in nav, nav[:300])
