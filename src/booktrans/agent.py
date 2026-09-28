@@ -623,6 +623,38 @@ def agy_done(out):
     return isinstance(env, dict) and env.get("status") == "SUCCESS"
 
 
+# Свой агент agy — без инструментов. У agy нет флага «без инструментов»,
+# роль флага играет файл агента: `tools: []` отбирает у модели команды, файлы
+# и поиск, `excludeDefaultComponents` — служебный промпт про них (около 12
+# тыс. токенов входа на каждый запрос). Файл пишется один раз и лежит, как
+# settings.json; agy читает его при каждом старте по флагу --agent.
+AGY_AGENT = "booktrans"
+AGY_AGENT_DIR = os.path.join(os.path.expanduser("~"), ".gemini", "config", "agents")
+AGY_AGENT_MD = """---
+name: booktrans
+description: Text-only translator for booktrans. No tools.
+tools: []
+mainAgent: true
+excludeDefaultComponents: true
+---
+Answer with text only. You have no tools: no commands, no files, no search.
+"""
+
+
+def agy_agent():
+    """Имя агента без инструментов; файл создаётся или обновляется, если его
+    нет или он от другой версии. Не удалось записать — работаем без агента."""
+    path = os.path.join(AGY_AGENT_DIR, AGY_AGENT, "agent.md")
+    try:
+        if not os.path.exists(path) or open(path, encoding="utf-8").read() != AGY_AGENT_MD:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(AGY_AGENT_MD)
+        return AGY_AGENT
+    except OSError:
+        return None
+
+
 class AgyAgent(Agent):
     """Antigravity CLI (agy)."""
 
@@ -655,6 +687,10 @@ class AgyAgent(Agent):
         # отказ. Срок должен быть один, наш.
         cmd = ["agy", "--sandbox", "--output-format", "json",
                "--print-timeout", f"{self.timeout}s"]
+        # Чтению картинки инструмент как раз нужен — оно идёт штатным агентом.
+        agent = None if image else agy_agent()
+        if agent:
+            cmd += ["--agent", agent]
         if self.model:
             cmd += ["--model", self.model]
         if self.effort:

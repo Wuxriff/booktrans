@@ -14,6 +14,7 @@
 """
 import json
 import os
+import tempfile
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -83,6 +84,8 @@ def main():
     def restore():
         A.subprocess.run, A.run_envelope = real
 
+    agy_dir = tempfile.mkdtemp()
+    A.AGY_AGENT_DIR = agy_dir
     for kind in ("claude", "agy", "codex"):
         spy = Ran(ANSWERS[kind])
         spied(kind, spy)
@@ -99,6 +102,16 @@ def main():
         ok(f"{kind}: текст ответа", got == "готово", repr(got))
         ok(f"{kind}: счёт токенов", meta.get("tokens") == TOKENS,
            meta.get("tokens"))
+        if kind == "agy":
+            ok("agy: запуск своим агентом без инструментов, файл агента создан",
+               "--agent" in cmd and cmd[cmd.index("--agent") + 1] == "booktrans"
+               and "tools: []" in open(os.path.join(agy_dir, "booktrans", "agent.md")).read(), cmd)
+            spy2 = Ran(ANSWERS[kind]); spied(kind, spy2)
+            try:
+                a.run("система", "запрос", image=__file__)
+            finally:
+                restore()
+            ok("agy: чтение картинки — без агента, инструмент нужен", "--agent" not in (spy2.cmd or []), spy2.cmd)
 
     # SUCCESS с пустым текстом — пустой ответ, а не сбой: перевод разберёт
     # его как обрыв на первом блоке, и два таких подряд станут отказом со

@@ -392,8 +392,16 @@ def _run(agent, system, prompt, retries, parse_fn, log):
             if isinstance(e, AgentError) and attempt < retries:
                 time.sleep(min(RETRY_PAUSE * attempt, RETRY_PAUSE * 4))
             err = e
-            cur = prompt + "\n\n---\n\n" + \
-                lang.prompt("retry_reject")[0].format(err=e)
+            # Сбой связи модель не видела: запрос до неё не дошёл или ответ
+            # не доехал. Пометка «прошлая попытка отвергнута» здесь только
+            # сбивает — Gemini после «ошибки 500» шёл разбираться, что
+            # случилось, и начинал с осмотра каталога. Повтор — тот же промпт.
+            # Упор в предел вывода — другое: модель ответила и разлилась.
+            if isinstance(e, AgentError) and not isinstance(e, agent_mod.OutputLimit):
+                cur = prompt
+            else:
+                cur = prompt + "\n\n---\n\n" + \
+                    lang.prompt("retry_reject")[0].format(err=e)
     FAULT.kind = "net" if net else "model"
     if last is not None:
         # Кусок обрывался до последней попытки — это отказ, а не сбой связи.

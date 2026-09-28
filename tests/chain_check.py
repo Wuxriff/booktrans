@@ -157,6 +157,22 @@ def main():
        res == "готово" and meta["model"] == "инструментальная" and meta.get("attempts") == 2
        and "Инструменты недоступны" in tooly.seen, (meta, tooly.seen[-80:]))
 
+    # Сбой связи: повтор — тот же промпт, без пометки об «отвергнутой попытке»
+    # (модель первой попытки не видела; Gemini от пометки шёл разбираться).
+    class Flaky(Says):
+        def run(self, system, user, image=None):
+            self.calls += 1
+            self.seen = user
+            if self.calls == 1:
+                raise AgentError("agy вернул 1: 500 Internal Server Error")
+            return "готово", {"model": self.model, "cost_usd": 0}
+    P.RETRY_PAUSE, pause = 0, P.RETRY_PAUSE
+    flaky = Flaky("шаткая")
+    (res, _), meta, _ = P._chain_run([flaky], "", "п", 3, plain, log)
+    P.RETRY_PAUSE = pause
+    ok("сбой связи: повтор без пометки, промпт тот же",
+       res == "готово" and meta.get("attempts") == 2 and flaky.seen == "п", (meta, flaky.seen))
+
     # Сбой поставщика — повод взять следующую модель, а не кончить прогон.
     first = Says("первая", boom=AgentError("agy вернул 1: high traffic"))
     second = Says("вторая")

@@ -531,11 +531,12 @@ carries one. Antigravity also silently cuts any message longer than about
 and the model then answers a stub; such a request is not sent at all and the
 chunk goes to the next model of the chain. One more habit of Gemini in
 Antigravity: instead of translating it sometimes reaches for a tool — a shell
-command, a file, a web search — which the non-interactive `agy` denies, and
-the turn ends with an empty reply. The pipeline tells the model up front that
-tools are unavailable, recognises a denied tool by `denied_actions` in the
-reply, and retries at once with a note, without counting it as a refusal or
-switching models.
+command, a file, a web search — and the non-interactive `agy` denies it, ending
+the turn with an empty reply. So the pipeline runs `agy` with its own agent
+`booktrans` (a file it writes once to `~/.gemini/config/agents/`), which has
+no tools at all; that also drops about 12k tokens of agy's tool instructions
+from every request. Should a tool still be denied, the reply is recognised by
+`denied_actions` and retried at once, without counting as a refusal.
 
 **Opus takes on anything but is slow**: a hundred-chunk book takes some ten
 hours — translation is sequential by design, each chunk building on the
