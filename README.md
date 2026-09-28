@@ -984,6 +984,7 @@ Hebrew and Arabic tables, plus East Asian `shift_jis`, `euc_jp`, `gb18030`,
 -w, --work DIR        work directory
 --to CODE             target language (langs/CODE.md), en by default
 --bilingual           bilingual build: every source paragraph followed by its translation in a lighter type, headings in both languages; contents and footnotes in the target language
+--bilingual-style S   how the translation looks in a bilingual book: light (default: grey and smaller in epub, unmarked in fb2), italic, cite
 --ui CODE             interface language (ui/CODE.json), en by default
 --encoding NAME       input encoding, when detection got it wrong
 --only STEP           a single step: ocr|structure|ocrfix|scout|translate|edit|verify|build|qa|notes

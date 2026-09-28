@@ -549,6 +549,8 @@ p.v{margin:0 0 .1em 2em;text-align:left;font-style:italic;text-indent:-1em}
 p.gap{margin:0;height:.9em}
 p.tr{margin:-.5em 0 1.1em;color:#666;font-size:.92em;text-align:left;hyphens:manual}
 p.v.tr{margin:0 0 .4em 2em;font-style:normal}
+p.tr.italic{font-style:italic;color:inherit;font-size:inherit}
+p.tr.cite{margin:-.5em 1.5em 1.1em;color:inherit;font-size:inherit}
 h1 span.tr,h2 span.tr,h3 span.tr{display:block;color:#666;font-size:.7em;font-weight:normal;letter-spacing:0}
 pre{font:.85em/1.4 'DejaVu Sans Mono',Consolas,monospace;background:#f4f4f0;
 border-left:3px solid #ddd;padding:.6em .8em;margin:1.2em 0;overflow-x:auto;
@@ -617,7 +619,7 @@ def write_html(path, meta, items, notes, images, note_prefix, st=None, cover=Non
             mark = (f'<sup><a href="#n{nums[bid]}" id="r{nums[bid]}">[{nums[bid]}]</a></sup>'
                     if bid in nums else "")
             body, mark = _anchored(_inline(text, HTML_INLINE, links), bid, mark)
-            o.append(f'<p class="{"tr" if kind == "ptr" else "v tr"}"{_at(bid, targets)}{_lang(tl)}>{body}{mark}</p>')
+            o.append(f'<p class="{"tr" if kind == "ptr" else "v tr"}{_trstyle(meta)}"{_at(bid, targets)}{_lang(tl)}>{body}{mark}</p>')
         elif kind == "p":
             mark = (f'<sup><a href="#n{nums[bid]}" id="r{nums[bid]}">[{nums[bid]}]</a></sup>'
                     if bid in nums else "")
@@ -651,6 +653,12 @@ def _cover_mime(raw):
     if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
         return "image/webp", "webp"
     return "image/jpeg", "jpg"
+
+
+def _trstyle(meta):
+    """Класс стиля перевода в двуязычной книге: light — ничего сверх `tr`."""
+    s = (meta or {}).get("bilingual_style") or "light"
+    return f" {s}" if s in ("italic", "cite") else ""
 
 
 def _lang(code):
@@ -750,7 +758,7 @@ def write_epub(path, meta, items, notes, images, note_prefix, st=None, cover=Non
                 mark = (f'<sup><a href="notes.xhtml#n{nums[bid]}">[{nums[bid]}]</a></sup>'
                         if bid in nums else "")
                 body, mark = _anchored(_inline(text, HTML_INLINE, links), bid, mark)
-                o.append(f'<p class="{"tr" if kind == "ptr" else "v tr"}"{_at(bid, targets)}{_lang(tl)}>{body}{mark}</p>')
+                o.append(f'<p class="{"tr" if kind == "ptr" else "v tr"}{_trstyle(meta)}"{_at(bid, targets)}{_lang(tl)}>{body}{mark}</p>')
             elif kind == "p":
                 mark = (f'<sup><a href="notes.xhtml#n{nums[bid]}">[{nums[bid]}]</a></sup>'
                         if bid in nums else "")
@@ -1868,20 +1876,24 @@ def write_fb2(dest, meta, items, notes, images, note_prefix, st=None, cover=None
             # выходят соседними абзацами; знак сноски — где его метка, иначе
             # на последней.
             two = kw.get("bilingual") and not b.get("asis") and b["text"].strip()
+            style = kw.get("bilingual_style") or "light"
             if two:
                 for k, part in enumerate(_br_parts(b["text"])):
                     w(f"<p{aid(b) if k == 0 else ''}>{esc(part, b.get('links'), notes_map)}</p>")
-                w("<cite>")
+                if style == "cite":
+                    w("<cite>")
             parts = _br_parts(text)
             tl = (meta or {}).get("target_lang", "")
             for k, part in enumerate(parts):
                 body, a = _anchored(esc(part, b.get('links'), notes_map), b["id"], a)
                 tail = a if k == len(parts) - 1 else ""
                 if two:
+                    if style == "italic":
+                        body = f"<emphasis>{body}</emphasis>"
                     w(f'<p xml:lang="{tl}">{body}{tail}</p>' if tl else f"<p>{body}{tail}</p>")
                 else:
                     w(f"<p{aid(b) if k == 0 else ''}>{body}{tail}</p>")
-            if two:
+            if two and style == "cite":
                 w("</cite>")
     close_poem()
     if open_sec:

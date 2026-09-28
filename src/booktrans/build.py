@@ -658,6 +658,7 @@ def build_book(work, meta, blocks, cover, dest, log, partial=False, images=None)
             kw.update({
                 "blocks": blocks, "tr": tr, "partial": partial,
                 "bilingual": bool(meta.get("bilingual")),
+                "bilingual_style": meta.get("bilingual_style") or "light",
                 "about_head": head, "about_body": body,
                 "details_head": dhead, "details_body": dbody,
                 "esc": esc, "span_attr": output.span_attr

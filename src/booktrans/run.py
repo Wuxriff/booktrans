@@ -367,6 +367,7 @@ class Run:
         # Двуязычная сборка — тоже свойство запуска: те же слои перевода,
         # другой вид книги.
         meta["bilingual"] = bool(getattr(a, "bilingual", False))
+        meta["bilingual_style"] = getattr(a, "bilingual_style", None) or "light"
 
     def measure(self):
         """Нарезка на куски и счёт: есть ли что переводить.

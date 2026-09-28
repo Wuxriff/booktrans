@@ -290,6 +290,7 @@
  "reanchored": "block numbering shifted: translation re-anchored, blocks: {}",
  "h_name_series": "include the cycle and book number in the output file name: “Author. Cycle 2. Title”",
  "h_bilingual": "bilingual build: every source paragraph followed by its translation in a lighter type, headings in both languages; contents and footnotes in the target language",
+ "h_bilingual_style": "how the translation looks in a bilingual book: light — the quietest the format allows (grey and smaller in epub, unmarked in fb2; enough when the scripts differ), italic, cite — indented as a quotation (default light)",
  "step_verify": "verifying remarks against the original",
  "done_verify": "verified {}, already done {}, {} footnotes, {} fixes",
  "nothing_verify": "no remarks to verify",
