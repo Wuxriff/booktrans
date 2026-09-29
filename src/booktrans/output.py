@@ -606,7 +606,7 @@ def write_html(path, meta, items, notes, images, note_prefix, st=None, cover=Non
         elif kind == "image" and re.match(r"https?://|//", text):
             o.append(f'<img src="{escape(text)}" alt="">')   # картинка по сети
         elif kind == "table":
-            o.append(_table_html(text, HTML_INLINE, sp[0] if sp else None))
+            o.append(_table_html(text, HTML_INLINE, sp[0] if sp else None).replace("<table", f"<table{_at(bid, targets)}", 1))
         elif kind == "verse":
             o.append(f'<p class="v">{_inline(text, HTML_INLINE)}</p>')
         elif kind == "code":
@@ -745,7 +745,7 @@ def write_epub(path, meta, items, notes, images, note_prefix, st=None, cover=Non
             elif kind == "image" and text in images:
                 o.append(f'<img src="img/{escape(text)}" alt=""/>')
             elif kind == "table":
-                o.append(_table_html(text, HTML_INLINE, sp[0] if sp else None))
+                o.append(_table_html(text, HTML_INLINE, sp[0] if sp else None).replace("<table", f"<table{_at(bid, targets)}", 1))
             elif kind == "verse":
                 o.append(f'<p class="v">{_inline(text, HTML_INLINE)}</p>')
             elif kind == "code":
@@ -1833,7 +1833,7 @@ def write_fb2(dest, meta, items, notes, images, note_prefix, st=None, cover=None
             if not open_sec:
                 w("<section>")
                 open_sec = True
-            w("<table>")
+            w(f"<table{aid(b)}>")
             for i, row in enumerate(text.splitlines()):
                 cells = [c.strip() for c in re.split(r"(?<!\\)\|", row)]
                 w("<tr>" + "".join(

@@ -225,7 +225,15 @@ def _inner(el, keep=KEEP_INLINE, note=False):
                     out.append(ch.text)
                 walk(ch)
             elif tag == "a" and (_epub_type(ch) == "backlink" or note):
-                pass                       # «вернуться к тексту» — служебное
+                # Обратная ссылка «вернуться к тексту» стоит в конце сноски и
+                # читателю перевода не нужна. Но та же разметка в начале
+                # блока — метка: номер сноски у Wiley, «EXHIBIT 1.1» в подписи
+                # к иллюстрации. Метка остаётся текстом, ссылка снимается.
+                label = "".join(ch.itertext()).strip()
+                if label and len(label) <= 40 and not "".join(out).strip():
+                    if ch.text:
+                        out.append(ch.text)
+                    walk(ch)               # с разметкой: <b>EXHIBIT 1.1</b>
             elif tag == "a" and _href(ch) and (
                     _keep_link(_href(ch)) or _epub_type(ch) == "noteref"
                     or "#" in _href(ch)):
@@ -636,11 +644,13 @@ def _anchors_of(el):
     """
     out = [el.get("id")] if el.get("id") else []
     for ch in el.iter():
-        # Себя не считаем: якорь `<a name>` принадлежит абзацу, внутри
-        # которого стоит, и тот его уже забрал. Иначе сам `<a>`, обходимый
-        # следом за абзацем, переписал бы цель на следующий блок.
-        if ch is not el and re.sub(r"\{.*?\}", "", ch.tag) == "a" and ch.get("name"):
-            out.append(ch.get("name"))
+        # Себя не считаем: якорь `<a name>` или `<a id>` принадлежит абзацу,
+        # внутри которого стоит, и тот его уже забрал. Иначе сам `<a>`,
+        # обходимый следом за абзацем, переписал бы цель на следующий блок.
+        if ch is not el and re.sub(r"\{.*?\}", "", ch.tag) == "a":
+            for a in (ch.get("name"), ch.get("id")):
+                if a:
+                    out.append(a)
     return out
 
 
@@ -675,9 +685,12 @@ def _doc_blocks(root, styles, get_image, stats):
         tag = re.sub(r"\{.*?\}", "", el.tag)
         # Побеждает не первый, а последний: обход идёт сверху вниз, и <body>
         # с <div> видят якорь раньше того абзаца, которому он принадлежит.
-        # Блока они не дают, а заявку подавали.
-        for a in _anchors_of(el):
-            anchors[a] = len(got)
+        # Блока они не дают, а заявку подавали. Исключение — `<a id>` с
+        # текстом внутри абзаца: его якорь абзац уже взял, а сам он идёт
+        # следом и переписал бы цель на следующий блок.
+        if not (tag == "a" and "".join(el.itertext()).strip()):
+            for a in _anchors_of(el):
+                anchors[a] = len(got)
         if tag == "hr":
             got.append(("break", "", [], ""))
             continue
@@ -697,6 +710,13 @@ def _doc_blocks(root, styles, get_image, stats):
                 got.append(("note", text, links, el.get("id") or ""))
             continue
         if tag == "table":
+            # Подпись <caption> — абзацем перед таблицей: она переводится, и
+            # якорь таблицы ведёт к ней. Раньше подпись терялась вовсе.
+            for cap in el:
+                if re.sub(r"\{.*?\}", "", cap.tag) == "caption":
+                    ct, cl = _inner(cap)
+                    if ct:
+                        got.append(("p", ct, cl, ""))
             t, spans = _table_text(el)
             if t:
                 got.append(("table", t, [], "", spans))
