@@ -51,9 +51,15 @@ def launch(mode, env, rc="0", timeout=5):
         err = None
     except subprocess.TimeoutExpired as e:
         r, err = None, e
-    kid = int(open(pidfile).read())
+    with open(pidfile) as stream:
+        kid = int(stream.read())
     os.unlink(pidfile)
-    return r, err, time.time() - t0, alive(kid)
+    dt = time.time() - t0
+    # Windows process termination can finish after the parent has exited.
+    deadline = time.monotonic() + 2
+    while alive(kid) and time.monotonic() < deadline:
+        time.sleep(.05)
+    return r, err, dt, alive(kid)
 
 
 def alive(pid):
@@ -81,7 +87,8 @@ def main():
     ok("повис после ответа: конверт принят за три секунды",
        r and r.returncode == 0 and "готово" in r.stdout and 2.5 < dt < 5,
        (r and r.returncode, dt))
-    ok("повис после ответа: никого не осталось", not kid and not A.LIVE)
+    ok("повис после ответа: никого не осталось", not kid and not A.LIVE,
+       (kid, len(A.LIVE)))
 
     r, err, dt, kid = launch("exit", good, rc="3")
     ok("вышел сам с ненулевым кодом: код сохранён", r and r.returncode == 3, r)
@@ -94,7 +101,8 @@ def main():
     r, err, dt, kid = launch("silent", good, timeout=2)
     ok("молчит: срок вышел ошибкой TimeoutExpired",
        err is not None and r is None and 1.5 < dt < 4, (err, dt))
-    ok("молчит: сирот после срока нет", not kid and not A.LIVE)
+    ok("молчит: сирот после срока нет", not kid and not A.LIVE,
+       (kid, len(A.LIVE)))
 
     # The Windows reader uses a thread instead of select() on the pipe.
     script = ('import sys,time; '
