@@ -192,6 +192,7 @@ def main():
     ok("знак сноски стоит у термина", bool(at) and "дальше.<sup" not in ch,
        re.findall(r".{14}<sup>.{28}", ch))
     ok("метка не протекла в книгу", "\ue000" not in ch and "\ue001" not in ch)
+    zz.close()
     shutil.rmtree(d2, ignore_errors=True)
 
     ok("внутренняя ссылка несёт имя файла",
@@ -200,6 +201,7 @@ def main():
     ok("цель ссылки помечена", 'id="s02.b0001"' in x)
     ok("таблица со слиянием собрана", 'colspan="2"' in x,
        re.findall(r"<table>.*?</table>", x, re.S))
+    z.close()
     shutil.rmtree(d)
 
     # --- html: тот же набор блоков, но один файл
@@ -207,7 +209,8 @@ def main():
     h = os.path.join(d, "book.html")
     O.write_html(h, {"title": "Книга", "author": "Автор", "target_lang": "ru"},
                  ITEMS, NOTES, {"photo.png": OTHER}, "Прим.:", {}, cover=PIXEL)
-    t = open(h, encoding="utf-8").read()
+    with open(h, encoding="utf-8") as stream:
+        t = stream.read()
     # Файл самодостаточный: картинки уходят в data:, и обложка тоже — иначе
     # при пересылке одним файлом от неё ничего не осталось бы.
     ok("обложка в html есть", '<img class="cover"' in t)
