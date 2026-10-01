@@ -76,14 +76,16 @@ def locked(work, argv=()):
     lock = os.path.join(work, "running.pid")
     if os.path.exists(lock):
         try:
-            old_pid = int(open(lock).read().split()[0])
+            with open(lock, encoding="utf-8", errors="replace") as stream:
+                old_pid = int(stream.read().split()[0])
         except (ValueError, IndexError):
             os.unlink(lock)                 # остался от упавшего — снимаем
         else:
             if _pid_alive(old_pid):
                 sys.exit(lang.T("locked", work, old_pid))
             os.unlink(lock)
-    open(lock, "w").write(f"{os.getpid()} {' '.join(argv)}")
+    with open(lock, "w", encoding="utf-8") as stream:
+        stream.write(f"{os.getpid()} {' '.join(argv)}")
     try:
         yield
     finally:

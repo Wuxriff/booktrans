@@ -62,7 +62,8 @@ def main():
     ok("--ui читается до разбора", ui == "ru" and argv == ["книга.epub", "--ui", "ru"])
     d = tempfile.mkdtemp()
     p = os.path.join(d, "п.conf")
-    open(p, "w", encoding="utf-8").write("--ui en\n--jobs 3\n")
+    with open(p, "w", encoding="utf-8") as stream:
+        stream.write("--ui en\n--jobs 3\n")
     argv, ui = cli.expand(["книга.epub", "--profile", p])
     ok("профиль развёрнут в начало, язык взят из него",
        argv == ["--ui", "en", "--jobs", "3", "книга.epub"] and ui == "en", (argv, ui))
@@ -70,8 +71,10 @@ def main():
     # ---- замок папки
     lock = os.path.join(d, "running.pid")
     with locked(d, ["книга.epub", "--only", "build"]):
+        with open(lock, encoding="utf-8") as stream:
+            lock_text = stream.read()
         ok("замок записан своим pid",
-           open(lock).read().split()[0] == str(os.getpid()))
+           lock_text.split()[0] == str(os.getpid()))
         try:
             with locked(d):
                 pass
@@ -80,10 +83,13 @@ def main():
             ok("второй прогон в ту же папку не пускается", True)
         ok("чужая попытка замка не снимает", os.path.exists(lock))
     ok("замок снят на выходе", not os.path.exists(lock))
-    open(lock, "w").write("999999999 мёртвый")     # такого процесса нет
+    with open(lock, "w", encoding="utf-8") as stream:
+        stream.write("999999999 мёртвый")     # такого процесса нет
     with locked(d):
+        with open(lock, encoding="utf-8") as stream:
+            lock_text = stream.read()
         ok("замок упавшего прогона перезаписывается",
-           open(lock).read().split()[0] == str(os.getpid()))
+           lock_text.split()[0] == str(os.getpid()))
     ok("снят и он", not os.path.exists(lock))
     try:
         with locked(d):
