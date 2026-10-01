@@ -32,6 +32,10 @@ ready-made wrappers, each one line away from `booktrans`:
 | `./bt_agy` | Gemini Pro & Flash through Antigravity |
 | `./bt_codex` | Codex |
 
+`booktrans_ru` and `bt_*` are shell wrappers; they do not run directly in
+ordinary Windows CMD/PowerShell. Use `booktrans --to ru --ui ru` instead of
+`booktrans_ru`, and `booktrans --profile agy` (or another profile) instead of `bt_*`.
+
 The key `--agent claude|agy|codex` does the same, `--agent openrouter`
 reaches any model of [OpenRouter](https://openrouter.ai) by API key (see
 "OpenRouter"), and `--agent cmd --agent-cmd '…'` plugs in a CLI of your own.

@@ -10,7 +10,7 @@ import os
 import re
 import sys
 
-from . import build, extract, lang, pipeline
+from . import build, extract, lang, pipeline, winproc
 
 # Проходы после приёма книги, по порядку. Распознавание и разметка идут при
 # приёме: без них книгу не прочесть.
@@ -22,6 +22,19 @@ PASSES = ("scout", "translate", "edit", "verify", "notes", "build", "qa")
 META_KEYS = {"title", "author", "title_target", "author_target", "series",
              "series_target", "series_no", "year", "publisher", "isbn", "lang",
              "uid", "genre", "author_surname"}
+
+
+def _pid_alive(pid):
+    """Check a lock owner with the process API of the host OS."""
+    if os.name == "nt":
+        return winproc.pid_alive(pid)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def read_prompt(path, log=None, text=None):
@@ -64,11 +77,12 @@ def locked(work, argv=()):
     if os.path.exists(lock):
         try:
             old_pid = int(open(lock).read().split()[0])
-            os.kill(old_pid, 0)             # жив ли тот процесс
-        except (ValueError, ProcessLookupError, PermissionError, IndexError):
+        except (ValueError, IndexError):
             os.unlink(lock)                 # остался от упавшего — снимаем
         else:
-            sys.exit(lang.T("locked", work, old_pid))
+            if _pid_alive(old_pid):
+                sys.exit(lang.T("locked", work, old_pid))
+            os.unlink(lock)
     open(lock, "w").write(f"{os.getpid()} {' '.join(argv)}")
     try:
         yield
@@ -650,4 +664,3 @@ class Run:
         build.sources_report(w, log, to=a.to)
         build.usage_report(w, log, self.T, a.to)
         return True
-

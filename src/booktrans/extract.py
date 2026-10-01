@@ -12,6 +12,7 @@ import functools
 import difflib
 import html.parser
 import os
+import posixpath
 import re
 import subprocess
 import urllib.parse
@@ -39,9 +40,9 @@ def _zpath(base, href):
 
     В OPF пути записаны как URI: пробел там «%20», кириллица — проценты.
     Без расшифровки запись в архиве не находится, и книга молча теряет
-    все главы разом.
+    все главы разом. Имена в ZIP всегда с прямыми слешами, включая Windows.
     """
-    return os.path.normpath(os.path.join(base, urllib.parse.unquote(href or "")))
+    return posixpath.normpath(posixpath.join(base, urllib.parse.unquote(href or "")))
 DC = "{http://purl.org/dc/elements/1.1/}"
 FB = "{http://www.gribuser.ru/xml/fictionbook/2.0}"
 # FB2 называет курсив и зачёркивание своими словами: без них книга из fb2
@@ -340,7 +341,7 @@ def scan_styles(path):
     container = ET.fromstring(zf.read("META-INF/container.xml"))
     opf_path = container.find(
         ".//{urn:oasis:names:tc:opendocument:xmlns:container}rootfile").get("full-path")
-    base = os.path.dirname(opf_path)
+    base = posixpath.dirname(opf_path)
     opf = ET.fromstring(zf.read(opf_path))
     manifest = {i.get("id"): i for i in opf.find(OPF + "manifest")}
     spine = [manifest[r.get("idref")] for r in opf.find(OPF + "spine")
@@ -799,7 +800,7 @@ def _epub(path, styles=None, encoding=None, ask=None):
     container = ET.fromstring(zf.read("META-INF/container.xml"))
     rootfile = container.find(".//{urn:oasis:names:tc:opendocument:xmlns:container}rootfile")
     opf_path = rootfile.get("full-path")
-    base = os.path.dirname(opf_path)
+    base = posixpath.dirname(opf_path)
     opf = ET.fromstring(zf.read(opf_path))
 
     meta = {}
@@ -866,9 +867,9 @@ def _epub(path, styles=None, encoding=None, ask=None):
         except KeyError as e:
             lost.append(f"{name}: {type(e).__name__}")
             continue
-        def get_image(href, _base=os.path.dirname(name)):
+        def get_image(href, _base=posixpath.dirname(name)):
             ipath = _zpath(_base, href)
-            key = os.path.basename(ipath)
+            key = posixpath.basename(ipath)
             if key not in images:
                 try:
                     images[key] = zf.read(ipath)
@@ -892,7 +893,7 @@ def _epub(path, styles=None, encoding=None, ask=None):
             if pics and sec == 1 and len(pics) == 1 and cover is None:
                 first_cover = pics[0][1]
                 continue
-            skip = os.path.basename(cover or "")
+            skip = posixpath.basename(cover or "")
             for kind, text, *rest in pics:
                 if text == skip:
                     continue                 # обложка в теле второй раз не нужна
@@ -3480,4 +3481,3 @@ def ocr(path, agents, pages_str=None, jobs=1, log=print, T=None, prompt=""):
             process_page(p)
             
     print()
-

@@ -9,18 +9,21 @@ nav делает оглавление. Ошибка тут не видна на 
     python3 tests/epub_check.py
 """
 import base64
+import ntpath
 import os
 import re
 import shutil
 import sys
 import tempfile
+import types
 import xml.etree.ElementTree as ET
 import zipfile
+from unittest.mock import patch
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "src"))
 
-from booktrans import lang as O_lang                        # noqa: E402
+from booktrans import extract as E, lang as O_lang          # noqa: E402
 from booktrans import output as O                          # noqa: E402
 
 OPF = "{http://www.idpf.org/2007/opf}"
@@ -66,6 +69,17 @@ def main():
         bad += not cond
 
     d, p = build()
+    # Names inside a ZIP are POSIX paths even when the host OS is Windows.
+    # Simulate ntpath here so a Linux test run catches accidental os.path use.
+    with patch.object(E, "os", types.SimpleNamespace(path=ntpath)):
+        member = E._zpath("OEBPS", "Text/ch.xhtml")
+    ok("путь главы в epub не зависит от Windows-разделителя",
+       member == "OEBPS/Text/ch.xhtml", member)
+    _, parsed, _, _ = E.read_book(p)
+    ok("собранный epub читается с главами из OEBPS",
+       any("Текст первой главы" in b["text"] for b in parsed),
+       [b["text"][:35] for b in parsed[:3]])
+    ok("перепись стилей читает главы из OEBPS", bool(E.scan_styles(p)))
     z = zipfile.ZipFile(p)
     names = z.namelist()
 
@@ -214,7 +228,6 @@ def main():
     # без текста»), картинка пропадала, а обложкой становилась первая
     # попавшаяся картинка манифеста — на живой книге это был логотип
     # издательства.
-    from booktrans import extract as E
     d = tempfile.mkdtemp()
     src = os.path.join(d, "к.epub")
     with zipfile.ZipFile(src, "w") as zz:

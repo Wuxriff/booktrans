@@ -32,6 +32,10 @@ pdf, md или txt, на выходе готовая книга в epub, fb2, ht
 | `./bt_agy` | Gemini Pro & Flash через Antigravity |
 | `./bt_codex` | Codex |
 
+`booktrans_ru` и `bt_*` — shell-обёртки: в обычной Windows CMD/PowerShell они
+напрямую не работают. Там запускайте `booktrans --to ru --ui ru` вместо
+`booktrans_ru` и `booktrans --profile agy` (или другой профиль) вместо `bt_*`.
+
 То же даёт ключ `--agent claude|agy|codex`, `--agent openrouter` идёт по
 ключу API к любой модели [OpenRouter](https://openrouter.ai) (раздел
 «OpenRouter»), а `--agent cmd --agent-cmd '…'` подключает свой CLI. Какими

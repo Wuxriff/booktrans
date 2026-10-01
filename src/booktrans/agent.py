@@ -21,6 +21,7 @@ import time
 import urllib.error
 import urllib.request
 
+from . import winproc
 from .lang import T
 from .tune import AGY_CAP, config_dir
 
@@ -380,7 +381,10 @@ class WaitingAgent:
 LIVE = set()            # наши группы процессов: при Ctrl+C убить всех
 
 
-def _killpg(p):
+def _stop_tree(p):
+    if os.name == "nt":
+        winproc.stop_tree(p)
+        return
     try:
         os.killpg(p.pid, signal.SIGKILL)
     except OSError:
@@ -390,7 +394,25 @@ def _killpg(p):
 def kill_all():
     """Дети в своём сеансе, сигнала терминала не видят — убиваются отсюда."""
     for p in list(LIVE):
-        _killpg(p)
+        _stop_tree(p)
+
+
+def _unix_chunks(p, cmd, deadline, timeout):
+    while True:
+        if time.time() > deadline:
+            raise subprocess.TimeoutExpired(cmd, timeout)
+        ready = select.select([p.stdout], [], [], 1)[0]
+        if not ready and p.poll() is not None:
+            # Вышел, а трубу держит его потомок — конца файла не будет.
+            ready = select.select([p.stdout], [], [], 0)[0]
+            if not ready:
+                break
+        if not ready:
+            continue
+        chunk = os.read(p.stdout.fileno(), 1 << 16)
+        if not chunk:
+            break
+        yield chunk
 
 
 def run_envelope(cmd, input, timeout, done):
@@ -399,11 +421,14 @@ def run_envelope(cmd, input, timeout, done):
     agy 1.1.26 после ответа на большой запрос не выходит — сбрасывает свою
     базу и виснет, конверт уже напечатав. Ждать выхода значило сжечь полчаса
     срока и выбросить готовый ответ. Здоровому даются три секунды выйти самому.
-    Ребёнок в своём сеансе, и убивается вся группа: под обёрткой sudo
+    Дочерние процессы убиваются вместе с агентом: под обёрткой sudo
     одиночный kill до самой программы не доходит, повисшие жили дальше.
     """
+    spawn = winproc.spawn_flags() if os.name == "nt" else {"start_new_session": True}
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE, start_new_session=True)
+                         stderr=subprocess.PIPE, **spawn)
+    if os.name == "nt":
+        winproc.attach_job(p)
     LIVE.add(p)
     errs = []
 
@@ -417,34 +442,26 @@ def run_envelope(cmd, input, timeout, done):
     hear = threading.Thread(target=lambda: errs.append(p.stderr.read()), daemon=True)
     hear.start()
     out, deadline, got = b"", time.time() + timeout, False
+    chunks = (winproc.read_chunks(p, cmd, deadline, timeout) if os.name == "nt"
+              else _unix_chunks(p, cmd, deadline, timeout))
     try:
-        while not got:
-            if time.time() > deadline:
-                raise subprocess.TimeoutExpired(cmd, timeout)
-            ready = select.select([p.stdout], [], [], 1)[0]
-            if not ready and p.poll() is not None:
-                # Вышел, а трубу держит его потомок — конца файла не будет.
-                ready = select.select([p.stdout], [], [], 0)[0]
-                if not ready:
-                    break
-            if not ready:
-                continue
-            chunk = os.read(p.stdout.fileno(), 1 << 16)
-            if not chunk:
-                break
+        for chunk in chunks:
             out += chunk
             got = done(out)
+            if got:
+                break
         if got:
             try:
                 p.wait(3)
             except subprocess.TimeoutExpired:
                 pass
     finally:
-        _killpg(p)
+        forced = p.poll() is None
+        _stop_tree(p)
         p.wait()
         LIVE.discard(p)
     hear.join(2)
-    rc = 0 if got and p.returncode < 0 else p.returncode
+    rc = 0 if got and forced else p.returncode
     return subprocess.CompletedProcess(
         cmd, rc, out.decode("utf-8", "replace"),
         b"".join(errs).decode("utf-8", "replace"))
