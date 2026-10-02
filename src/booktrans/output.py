@@ -184,6 +184,8 @@ def _inline(s, table, links=None):
         s = s.replace(f"&lt;{src}&gt;", f"<{dst}>").replace(f"&lt;/{src}&gt;", f"</{dst}>")
     if links:
         for i, url in enumerate(links, 1):
+            if not url:
+                continue                   # omitted index target: keep the label only
             href = escape(url, {'"': "&quot;"})
             tag = "a l:href" if table is FB2_INLINE else "a href"
             s = s.replace(f"&lt;a{i}&gt;", f'<{tag}="{href}">')
@@ -599,22 +601,22 @@ def write_html(path, meta, items, notes, images, note_prefix, st=None, cover=Non
         elif kind == "gap":
             o.append('<p class="gap"></p>')
         elif kind == "break":
-            o.append("<hr>")
+            o.append(f"<hr{_at(bid, targets)}>")
         elif kind == "image" and text in images:
             data = base64.b64encode(images[text]).decode()
-            o.append(f'<img src="data:{_mime(text)};base64,{data}" alt="">')
+            o.append(f'<img{_at(bid, targets)} src="data:{_mime(text)};base64,{data}" alt="">')
         elif kind == "image" and re.match(r"https?://|//", text):
-            o.append(f'<img src="{escape(text)}" alt="">')   # картинка по сети
+            o.append(f'<img{_at(bid, targets)} src="{escape(text)}" alt="">')   # картинка по сети
         elif kind == "table":
             o.append(_table_html(text, HTML_INLINE, sp[0] if sp else None).replace("<table", f"<table{_at(bid, targets)}", 1))
         elif kind == "verse":
-            o.append(f'<p class="v">{_inline(text, HTML_INLINE)}</p>')
+            o.append(f'<p class="v"{_at(bid, targets)}>{_inline(text, HTML_INLINE, links)}</p>')
         elif kind == "code":
-            o.append(f"<pre>{escape(text)}</pre>")
+            o.append(f"<pre{_at(bid, targets)}>{escape(text)}</pre>")
         elif kind == "orig":
-            o.append(f"<p>{_inline(text, HTML_INLINE, links)}</p>")
+            o.append(f"<p{_at(bid, targets)}>{_inline(text, HTML_INLINE, links)}</p>")
         elif kind == "origv":
-            o.append(f'<p class="v">{_inline(text, HTML_INLINE, links)}</p>')
+            o.append(f'<p class="v"{_at(bid, targets)}>{_inline(text, HTML_INLINE, links)}</p>')
         elif kind in ("ptr", "vtr"):
             mark = (f'<sup><a href="#n{nums[bid]}" id="r{nums[bid]}">[{nums[bid]}]</a></sup>'
                     if bid in nums else "")
@@ -741,19 +743,19 @@ def write_epub(path, meta, items, notes, images, note_prefix, st=None, cover=Non
             elif kind == "gap":
                 o.append('<p class="gap"></p>')
             elif kind == "break":
-                o.append("<hr/>")
+                o.append(f"<hr{_at(bid, targets)}/>")
             elif kind == "image" and text in images:
-                o.append(f'<img src="img/{escape(text)}" alt=""/>')
+                o.append(f'<img{_at(bid, targets)} src="img/{escape(text)}" alt=""/>')
             elif kind == "table":
                 o.append(_table_html(text, HTML_INLINE, sp[0] if sp else None).replace("<table", f"<table{_at(bid, targets)}", 1))
             elif kind == "verse":
-                o.append(f'<p class="v">{_inline(text, HTML_INLINE)}</p>')
+                o.append(f'<p class="v"{_at(bid, targets)}>{_inline(text, HTML_INLINE, links)}</p>')
             elif kind == "code":
-                o.append(f"<pre>{escape(text)}</pre>")
+                o.append(f"<pre{_at(bid, targets)}>{escape(text)}</pre>")
             elif kind == "orig":
-                o.append(f"<p>{_inline(text, HTML_INLINE, links)}</p>")
+                o.append(f"<p{_at(bid, targets)}>{_inline(text, HTML_INLINE, links)}</p>")
             elif kind == "origv":
-                o.append(f'<p class="v">{_inline(text, HTML_INLINE, links)}</p>')
+                o.append(f'<p class="v"{_at(bid, targets)}>{_inline(text, HTML_INLINE, links)}</p>')
             elif kind in ("ptr", "vtr"):
                 mark = (f'<sup><a href="notes.xhtml#n{nums[bid]}">[{nums[bid]}]</a></sup>'
                         if bid in nums else "")
@@ -1685,8 +1687,10 @@ def write_fb2(dest, meta, items, notes, images, note_prefix, st=None, cover=None
     span_attr = kw['span_attr']
     code = meta.get("target_lang", "ru")
 
+    targets = _targets(items) | set(nid) | set(notes_map or {})
+
     def aid(b):
-        return f' id="{b["id"]}"' if b["id"] in nid or b["id"] in (notes_map or {}) else ""
+        return _at(b["id"], targets)
     o = []
     w = o.append
     w('<?xml version="1.0" encoding="utf-8"?>')
@@ -1768,7 +1772,7 @@ def write_fb2(dest, meta, items, notes, images, note_prefix, st=None, cover=None
             # Короткая строка сразу за снимком — это подпись под ним: её
             # оставляем прижатой, а отбиваем уже после неё.
             if b["kind"] == "p" and 0 < len(text) <= CAPTION and open_sec:
-                w(f"<p>{esc(text, b.get('links'), notes_map)}</p>")
+                w(f"<p{aid(b)}>{esc(text, b.get('links'), notes_map)}</p>")
                 w("<empty-line/>")
                 after_img = False
                 continue
@@ -1792,7 +1796,7 @@ def write_fb2(dest, meta, items, notes, images, note_prefix, st=None, cover=None
                 w(f"<title><p>{esc(text, b.get('links'), notes_map)}</p></title>")
                 # Двуязычно: оригинал заголовка подзаголовком — в <title> его
                 # нельзя, читалка строит оглавление из всего <title>.
-                if kw.get("bilingual") and b["text"].strip() and b["text"] != text:
+                if kw.get("bilingual") and not b.get("index") and b["text"].strip() and b["text"] != text:
                     w(f"<subtitle>{esc(b['text'], b.get('links'), notes_map)}</subtitle>")
                 open_sec = True
             was_title = True
@@ -1814,10 +1818,10 @@ def write_fb2(dest, meta, items, notes, images, note_prefix, st=None, cover=None
                 w("<poem><stanza>")
                 in_poem = True
             if kw.get("bilingual") and b["text"].strip():
-                w(f"<v>{esc(b['text'], b.get('links'), notes_map)}</v>")
+                w(f"<v{aid(b)}>{esc(b['text'], b.get('links'), notes_map)}</v>")
                 w(f"<v><emphasis>{esc(text, b.get('links'), notes_map)}</emphasis></v>")
             else:
-                w(f"<v>{esc(text, b.get('links'), notes_map)}</v>")
+                w(f"<v{aid(b)}>{esc(text, b.get('links'), notes_map)}</v>")
         elif b["kind"] == "code":
             # В fb2 нет <pre>: листинг идёт строкой на абзац, а отступ держится
             # неразрывными пробелами — обычные читалка схлопнет.
@@ -1825,9 +1829,9 @@ def write_fb2(dest, meta, items, notes, images, note_prefix, st=None, cover=None
             if not open_sec:
                 w("<section>")
                 open_sec = True
-            for line in text.splitlines() or [""]:
+            for i, line in enumerate(text.splitlines() or [""]):
                 pre = len(line) - len(line.lstrip(" "))
-                w(f"<p><code>{' ' * pre}{esc(line.strip())}</code></p>")
+                w(f"<p{aid(b) if i == 0 else ''}><code>{' ' * pre}{esc(line.strip())}</code></p>")
         elif b["kind"] == "table":
             close_poem()
             if not open_sec:
@@ -1857,7 +1861,7 @@ def write_fb2(dest, meta, items, notes, images, note_prefix, st=None, cover=None
                 # ней в одной строке.
                 if not after_img:
                     w("<empty-line/>")
-                w(f'<image l:href="#{esc(b["text"])}"/>')
+                w(f'<image{aid(b)} l:href="#{esc(b["text"])}"/>')
                 after_img = True
                 continue
         elif b["kind"] == "note":

@@ -435,6 +435,8 @@ def link_targets(blocks):
 
 
 def build_book(work, meta, blocks, cover, dest, log, partial=False, images=None):
+    from . import indexing
+    blocks, index_tr = indexing.assemble(work, blocks, meta, partial)
     # Язык перевода — свойство прогона, и он же выбирает языковую часть
     # рабочей папки: `tr_ru` против `tr_de`.
     to = meta.get("target_lang", "")
@@ -445,6 +447,7 @@ def build_book(work, meta, blocks, cover, dest, log, partial=False, images=None)
         return f' id="{b["id"]}"' if b["id"] in targets else ""
 
     tr, edited = all_translations(work, to)
+    tr.update(index_tr)
     if edited:
         log("  " + lang.T("applied_edits", edited))
 
@@ -459,7 +462,7 @@ def build_book(work, meta, blocks, cover, dest, log, partial=False, images=None)
         key = lambda t: re.sub(r"\s+", "", strip(t))
         bare = {key(k): v for k, v in heads.items()}
         for b in blocks:
-            if b["kind"] not in HEAD_KINDS:
+            if b["kind"] not in HEAD_KINDS or b.get("index"):
                 continue
             v = heads.get(b["text"]) or bare.get(key(b["text"]))
             if v is not None:
@@ -494,7 +497,7 @@ def build_book(work, meta, blocks, cover, dest, log, partial=False, images=None)
         if b.get("asis"):
             tr.setdefault(b["id"], listings.get(b["id"], b["text"]))
     missing = [b["id"] for b in blocks
-               if b["kind"] not in ("break", "image") and b["id"] not in tr]
+               if not b.get("drop") and b["kind"] not in ("break", "image") and b["id"] not in tr]
     if missing and not partial:
         raise SystemExit(f"не переведено {len(missing)} блоков, например {missing[:6]}")
     src = {b["id"]: b["text"] for b in blocks}
@@ -621,7 +624,7 @@ def build_book(work, meta, blocks, cover, dest, log, partial=False, images=None)
                 else:
                     # Заголовок остаётся один, с переводом: по нему оглавление;
                     # оригинал писатель ставит второй строкой того же элемента.
-                    if k in ("title", "subtitle") and bid in src and src[bid].strip() and src[bid] != t:
+                    if k in ("title", "subtitle") and bid not in index_tr and bid in src and src[bid].strip() and src[bid] != t:
                         bi_titles[bid] = src[bid]
                     two.append(it)
             items = two
@@ -1000,6 +1003,16 @@ def usage_report(work, log, T=None, to=""):
     неделю покажет то же самое, и прерванный прогон не потеряет учёт.
     """
     rows = {}
+
+    def add(step, name, x):
+        k = (step, name, x.get("model") or "?")
+        r = rows.setdefault(k, {"n": 0, "usd": 0.0, "in": 0, "cached": 0, "out": 0})
+        r["n"] += 1
+        r["usd"] += x.get("cost_usd") or 0
+        tok = x.get("tokens") or {}
+        for f in ("in", "cached", "out"):
+            r[f] += tok.get(f) or 0
+
     # Порядок проходов — конвейерный, а не алфавитный: сводка читается как
     # история прогона.
     for step, (sub, name) in enumerate((("tr", T("pass_tr")), ("ed", T("pass_ed")),
@@ -1011,13 +1024,12 @@ def usage_report(work, log, T=None, to=""):
             if not n.endswith(".json"):
                 continue
             x = json.load(open(os.path.join(d, n), encoding="utf-8"))
-            k = (step, name, x.get("model") or "?")
-            r = rows.setdefault(k, {"n": 0, "usd": 0.0, "in": 0, "cached": 0, "out": 0})
-            r["n"] += 1
-            r["usd"] += x.get("cost_usd") or 0
-            tok = x.get("tokens") or {}
-            for f in ("in", "cached", "out"):
-                r[f] += tok.get(f) or 0
+            add(step, name, x)
+    ip = lpath(work, "index.json", to)
+    if os.path.exists(ip):
+        with open(ip, encoding="utf-8") as stream:
+            for x in json.load(stream).get("usage", []):
+                add(4, T("pass_index"), x)
     if not rows:
         return
     # Токены — тысячами, кэш — долей входа; пусто там, где поставщик счёта

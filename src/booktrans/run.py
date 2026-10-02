@@ -10,11 +10,11 @@ import os
 import re
 import sys
 
-from . import build, extract, lang, pipeline, winproc
+from . import build, extract, indexing, lang, pipeline, winproc
 
 # Проходы после приёма книги, по порядку. Распознавание и разметка идут при
 # приёме: без них книгу не прочесть.
-PASSES = ("scout", "translate", "edit", "verify", "notes", "build", "qa")
+PASSES = ("scout", "translate", "edit", "verify", "notes", "index", "build", "qa")
 
 # Что понимает шапка файла указаний. Ключ не из списка молча пропал бы:
 # написал человек title_ru вместо title_target — и книга вышла бы с
@@ -233,6 +233,15 @@ class Run:
         w = self.work
         d = json.load(open(bp, encoding="utf-8"))
         self.meta, self.blocks = d["meta"], d["blocks"]
+        if self.ext == ".epub" and self.meta.get("_index_version") != indexing.VERSION:
+            try:
+                self.blocks = indexing.restore(self.args.book, w, self.blocks)
+            except extract.BadBook as e:
+                sys.exit(str(e))
+            self.meta["_index_version"] = indexing.VERSION
+            with open(bp, "w", encoding="utf-8") as stream:
+                json.dump({"meta": self.meta, "blocks": self.blocks}, stream,
+                          ensure_ascii=False, indent=1)
         if os.path.exists(f"{w}/cover.bin"):
             self.cover = open(f"{w}/cover.bin", "rb").read()
         for sub in ("images", "pdf_pages/images"):
@@ -384,6 +393,8 @@ class Run:
         # другой вид книги.
         meta["bilingual"] = bool(getattr(a, "bilingual", False))
         meta["bilingual_style"] = getattr(a, "bilingual_style", None) or "light"
+        meta["index_mode"] = getattr(a, "index", "auto")
+        indexing.mark(self.blocks, meta["index_mode"])
 
     def measure(self):
         """Нарезка на куски и счёт: есть ли что переводить.
@@ -557,6 +568,7 @@ class Run:
         # выбросят его: на медицинской книге так ушёл в перевод 91 кусок.
         if self.meta.get("drop_sections"):
             extract._mark_back(self.blocks, drop_sections=self.meta["drop_sections"])
+        indexing.mark(self.blocks, getattr(a, "index", "auto"))
         self.meta.update(self.user_meta)
         if not self.meta.get("title_target"):
             log("  " + T("no_title", a.to))
@@ -625,6 +637,15 @@ class Run:
                                  fallback=self.models.rest("editor"), to=a.to)
         log("  " + (T("done_notes", d, s, t) if d else T("notes_already", s)))
         log("")
+        return True
+
+    def step_index(self):
+        if not any(b.get("index") and not b.get("drop") for b in self.blocks):
+            return True
+        self._head("step_index")
+        indexing.translate(self.work, self.blocks, self.args.to,
+                           self.models.chain("translator"), self.sysprompt(lean=True),
+                           self.args.retries, self.log)
         return True
 
     def step_build(self):

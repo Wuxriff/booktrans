@@ -173,6 +173,8 @@ def make_chunks(blocks, target=TARGET_WORDS):
     limit = chunk_limit(target)
     sections, cur = [], []
     for b in blocks:
+        if b.get("index"):
+            continue                  # dedicated pass; do not renumber prose chunks
         if b["kind"] == "title" and any(x["kind"] == "p" for x in cur):
             sections.append(cur)
             cur = []

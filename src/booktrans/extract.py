@@ -655,7 +655,7 @@ def _anchors_of(el):
     return out
 
 
-def _doc_blocks(root, styles, get_image, stats):
+def _doc_blocks(root, styles, get_image, stats, index_roles=None):
     """Блоки одного документа html или xhtml.
 
     Epub — это zip из таких документов, отдельный html — один такой
@@ -668,6 +668,13 @@ def _doc_blocks(root, styles, get_image, stats):
     # Потомков сноски обходить не надо: сама сноска уже взята целиком,
     # иначе её текст выйдет дважды — и в сносках, и абзацем в главе.
     inside_note = set()
+    index_roles = index_roles or {}
+    inside_index = set()
+    for node in root.iter():
+        if id(node) in index_roles and re.sub(r"\{.*?\}", "", node.tag) == "li":
+            for ch in node.iter():
+                if ch is not node and id(ch) not in index_roles:
+                    inside_index.add(id(ch))
     anchors = {}                 # якорь -> какой по счёту блок его несёт
     prev_anchor = ""
     for el in root.iter():
@@ -678,7 +685,24 @@ def _doc_blocks(root, styles, get_image, stats):
                 if ch is not el:
                     inside_note.add(id(ch))
     for el in root.iter():
-        if id(el) in inside_note:
+        if id(el) in inside_note or id(el) in inside_index:
+            continue
+        if id(el) in index_roles:
+            from . import indexing
+            role = dict(index_roles[id(el)])
+            if role["section"].startswith("semantic_") and not any(x[-1].get("section") == role["section"] for x in got if isinstance(x[-1], dict)):
+                got.append(("title", "Index", [], "", None,
+                            {"key": role["section"], "section": role["section"], "heading": True}))
+            own = indexing.own_element(el)
+            # Descendants will not be visited separately; retain pagebreak
+            # IDs on spans as well as the entry's own anchor.
+            for child in own.iter():
+                for a in _anchors_of(child):
+                    anchors[a] = len(got)
+            text, links = _inner(own)
+            if text:
+                kind = "title" if role.get("heading") else "p"
+                got.append((kind, text, links, "", None, role))
             continue
         a = _anchor_in(el)
         if a and not (el.text or "").strip():
@@ -787,6 +811,7 @@ def _doc_blocks(root, styles, get_image, stats):
 
 
 def _epub(path, styles=None, encoding=None, ask=None):
+    from . import indexing
     zf = zipfile.ZipFile(path)
     # DRM: текст книги зашифрован, читать нечего. Шрифты в encryption.xml —
     # обычная обфускация, книге не мешает; отказ только по текстовым файлам.
@@ -879,7 +904,8 @@ def _epub(path, styles=None, encoding=None, ask=None):
 
         sec += 1
         n = 0
-        got, anchors = _doc_blocks(root, styles, get_image, stats)
+        roles = indexing.doc_roles(root)
+        got, anchors = _doc_blocks(root, styles, get_image, stats, roles)
         at = {}
         for a, i in anchors.items():
             at.setdefault(i, []).append(a)
@@ -916,11 +942,12 @@ def _epub(path, styles=None, encoding=None, ask=None):
         # Пять и больше коротких заголовков подряд без единого абзаца —
         # оглавление, сколько бы ссылок ни уцелело.
         heads_only = all(x[0] in ("title", "subtitle") for x in texty)
-        if (len(texty) >= 5
+        if (not roles and len(texty) >= 5
                 and (len(linked) >= len(texty) * 0.8 or heads_only)
                 and all(len(_bare(x[1])) <= 60 for x in texty)):
             stats["junk_pages"] += 1
             continue
+        doc_blocks = []
         for i, (kind, text, lnk, note_id, *sp) in enumerate(got):
             n += 1
             blk = {"id": f"s{sec:02d}.b{n:04d}", "kind": kind, "text": text}
@@ -932,7 +959,11 @@ def _epub(path, styles=None, encoding=None, ask=None):
                 blk["anchors"] = at[i]
             if sp and sp[0]:
                 blk["spans"] = sp[0]
+            if len(sp) > 1 and sp[1]:
+                blk["index"] = sp[1]
             blocks.append(blk)
+            doc_blocks.append(blk)
+        indexing.finish_roles(doc_blocks)
 
     cover_bytes = None
     if cover:
@@ -962,6 +993,8 @@ def _epub(path, styles=None, encoding=None, ask=None):
             "Такую книгу сначала нужно распознать (OCR).")
     stats["lost"] = lost
     meta["_cleaned"] = stats
+    meta["_index_version"] = indexing.VERSION
+    zf.close()
     return meta, blocks, cover_bytes, images
 
 
@@ -3062,7 +3095,7 @@ def _asis_runs(blocks):
     Код и выброшенные разделы не в счёт — там решение не спорное."""
     runs, start = [], None
     for i, b in enumerate(blocks):
-        hit = bool(b.get("asis")) and not b.get("drop") and b["kind"] in ("p", "note")
+        hit = bool(b.get("asis")) and not b.get("drop") and not b.get("index") and b["kind"] in ("p", "note")
         if hit and start is None:
             start = i
         if not hit and start is not None:
@@ -3129,6 +3162,9 @@ def read_book(path, styles=None, encoding=None, ask=None, marks=None, agent=None
     try:
         meta, blocks, cover, images = _read_book(path, ext, styles, encoding, ask, marks, agent=agent)
         _mark_back(blocks)      # сначала разделы целиком, потом записи
+        if ext == ".epub":
+            from . import indexing
+            indexing.mark(blocks)
         _mark_refs(blocks)
         _mark_cites(blocks)     # до _prune_notes: правило смотрит на вид блока
         _prune_notes(blocks)

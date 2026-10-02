@@ -840,8 +840,37 @@ The anchor is looked for in the blocks of its own page, in order. Not found —
 silently skipped: damaged text costs more than a lost link. What goes missing
 is anchors the layout broke mid-word or set in italics.
 
-**The index therefore stays usable.** It is not translated (see
-"Bibliographies"), but you can click it: the page numbers lead into the text.
+Recovering PDF links does not yet enable index translation; the index feature
+below currently applies only to EPUB input.
+
+### EPUB indexes
+
+`--index auto` (default) keeps an index if at least half its entries have
+working internal links. Structural parents without their own references do
+not count towards that fraction. Other indexes are omitted. Terms are
+translated using the book's glossary and nearby passages from the final
+translation; nested entries, page labels and cross-references are preserved.
+Sorting is done by code, using Unicode collation; Russian treats «ё» as «е»
+and puts untranslated Latin entries after Cyrillic ones.
+
+A normal book has a translated index. With `--bilingual`, entries read
+«Анемия (anaemia)», still sorted by the translated term. Override separately
+with `--index translated`, `--index bilingual` or `--index omit`. Explicit
+translation modes bypass the half-linked threshold, but still require at
+least one working internal link.
+
+The `index` pass runs after verification, before assembly. On an existing
+working folder, the source EPUB supplies missing index entries without
+renumbering the prose or retranslating the book:
+
+```bash
+./booktrans book.epub -w Book.work --to ru --only index
+./booktrans book.epub -w Book.work --to ru --only build --index bilingual
+```
+
+Terms are saved in `ru/index.json` (or the target language's folder). Build
+does not call a model: if terms or their glossary/context have changed, rerun
+`--only index`. The EPUB must be the same source used for the working folder.
 
 
 The author's outward links — site, social media, sources — are carried over as
@@ -991,7 +1020,8 @@ Hebrew and Arabic tables, plus East Asian `shift_jis`, `euc_jp`, `gb18030`,
 --bilingual-style S   how the translation looks in a bilingual book: light (default: grey and smaller in epub, unmarked in fb2), italic, cite
 --ui CODE             interface language (ui/CODE.json), en by default
 --encoding NAME       input encoding, when detection got it wrong
---only STEP           a single step: ocr|structure|ocrfix|scout|translate|edit|verify|build|qa|notes
+--only STEP           a single step: ocr|structure|ocrfix|scout|translate|edit|verify|index|build|qa|notes
+--index MODE          EPUB index: auto|translated|bilingual|omit (default: auto)
 --skip a,b            skip steps
 --chunks 5,6,7        only these chunks; a range works too: 41-93
 --pages 5,6,10        only these pages (for PDF visual extraction)
@@ -1291,8 +1321,9 @@ a live book: chapters run 0-87% of pieces containing a digit at 519-914
 characters a paragraph, notes and index 97-100% at 92-320. No model is needed
 here: the numbers are too far apart.
 
-The section heading is still translated, so the finished book shows where the
-untranslated part begins, and it does not read as an oversight.
+Retained EPUB indexes use the dedicated `index` pass described under "Links";
+other back matter retains the existing treatment. The section heading is
+still translated, so unchanged entries do not read as an oversight.
 
 **Out of a pdf the notes arrive as ordinary text.** The "note" kind is set by
 epub, where a note is marked up as a link; in a pdf there is nobody to set it,

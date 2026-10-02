@@ -31,7 +31,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # рядом, а отдельный проход перечитывал бы всю книгу второй раз. Шаг notes
 # остался для случая, когда редактуру пропускают.
 STEPS = ("ocr", "structure", "ocrfix", "scout", "translate", "edit", "verify",
-         "build", "qa")
+         "index", "build", "qa")
 ALL_STEPS = STEPS + ("notes",)
 
 
@@ -201,6 +201,8 @@ def parser(ui):
     ap.add_argument("--like", action="append", help=T("h_like"))
     ap.add_argument("--name-series", action="store_true", help=T("h_name_series"))
     ap.add_argument("--bilingual", action="store_true", help=T("h_bilingual"))
+    ap.add_argument("--index", choices=("auto", "translated", "bilingual", "omit"),
+                    default="auto", help=T("h_index"))
     ap.add_argument("--bilingual-style", choices=["light", "italic", "cite"], default="light",
                     help=T("h_bilingual_style"))
     ap.add_argument("--translator", help=T("h_translator"))
